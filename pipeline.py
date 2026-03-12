@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # Copyright (C) 2026 xiaomi-camera-pipeline contributors
 # SPDX-License-Identifier: AGPL-3.0
 #
@@ -26,6 +27,27 @@
 
 import os
 import sys
+import io
+
+# ========== 强制 UTF-8 编码配置（Windows 机房环境）==========
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# Windows 环境下强制设置 stdout/stderr 编码（机房还原卡问题）
+if sys.platform == 'win32':
+    os.environ['LC_ALL'] = 'zh_CN.UTF-8'
+    os.environ['LANG'] = 'zh_CN.UTF-8'
+    # 仅在 Windows 下强制重定向 stdout/stderr
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+    except (AttributeError, OSError):
+        pass  # 某些环境下 buffer 可能不可用
+else:
+    # Linux/Docker 环境：使用 C.UTF-8（无需额外安装）
+    os.environ.setdefault('LC_ALL', 'C.UTF-8')
+    os.environ.setdefault('LANG', 'C.UTF-8')
+# ===================================================
 import time
 import yaml
 import subprocess
@@ -60,6 +82,11 @@ DEFAULT_CONFIG = {
     'schedule': {
         'interval': 3600,
         'run_once': False,
+    },
+    'logging': {
+        'level': 'INFO',
+        'format': '%(asctime)s - %(levelname)s - %(message)s',
+        'retain_days': 30,
     }
 }
 
@@ -76,7 +103,7 @@ def load_config():
                 if key in user_config:
                     config[key].update(user_config[key])
     
-    # 环境变量覆盖（支�?COMPRESS_* 前缀�?
+    # 环境变量覆盖（支COMPRESS_* 前缀
     if os.getenv('COMPRESS_RESOLUTION'):
         config['compress']['resolution'] = os.getenv('COMPRESS_RESOLUTION')
     if os.getenv('COMPRESS_CRF'):
@@ -89,22 +116,70 @@ def load_config():
     return config
 
 
-def setup_logging():
-    """配置日志：同时输出到文件�?stdout"""
+def setup_logging(config=None):
+    """配置日志：同时输出到文件和 stdout
+    
+    Args:
+        config: 日志配置字典，包含 level, format, retain_days
+    
+    Returns:
+        log_file: 日志文件路径
+    """
     log_dir = os.getenv('LOG_DIR', '/logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'pipeline.log')
     
+    # 从配置或环境变量获取日志级别
+    if config and 'level' in config:
+        level_str = config['level']
+    else:
+        level_str = os.getenv('LOG_LEVEL', 'INFO')
+    
+    level = getattr(logging, level_str.upper(), logging.INFO)
+    
+    # 日志格式
+    if config and 'format' in config:
+        fmt = config['format']
+    else:
+        fmt = '%(asctime)s - %(levelname)s - %(message)s'
+    
+    # 配置根日志记录器
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s',
+        level=level,
+        format=fmt,
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[
             logging.FileHandler(log_file, encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
+    
+    # 清理旧日志文件
+    _cleanup_old_logs(log_dir, config)
+    
     return log_file
+
+
+def _cleanup_old_logs(log_dir, config=None):
+    """清理超过保留天数的旧日志文件"""
+    retain_days = 30  # 默认 30 天
+    if config and 'retain_days' in config:
+        retain_days = config['retain_days']
+    
+    if retain_days <= 0:
+        return
+    
+    try:
+        cutoff = datetime.now().timestamp() - (retain_days * 86400)
+        for filename in os.listdir(log_dir):
+            if filename.endswith('.log'):
+                filepath = os.path.join(log_dir, filename)
+                if os.path.isfile(filepath):
+                    if os.path.getmtime(filepath) < cutoff:
+                        os.remove(filepath)
+                        logging.debug(f"已清理旧日志: {filename}")
+    except OSError:
+        pass  # 清理失败不影响主程序
 
 
 def init_db():
@@ -128,7 +203,7 @@ def is_processed(path, stage):
 def mark_processed(path, stage):
     conn = sqlite3.connect(STATE_DB)
     c = conn.cursor()
-    c.execute('INSERT OR REPLACE INTO processed VALUES (?, ?, ?)',
+    c.execute('INSERT OR REPLACE INTO processed VALUES (?, ?, ")',
               (path, stage, datetime.now().isoformat()))
     conn.commit()
     conn.close()
@@ -158,7 +233,7 @@ def merge_videos(config):
     dirs = get_video_dirs(source)
     
     if not dirs:
-        logging.info("[合并] 没有新视频需要处�?)
+        logging.info("[合并] 没有新视频需要处理")
         return 0
     
     count = 0
@@ -196,13 +271,13 @@ def merge_videos(config):
         # 跳过已存在的有效文件
         if os.path.exists(out_file):
             if verify_video(out_file):
-                logging.info(f"[合并] 跳过已存�? {out_file}")
+                logging.info(f"[合并] 跳过已存 {out_file}")
                 mark_processed(video_dir, 'merge')
                 count += 1
                 os.remove(concat_file)
                 continue
             else:
-                logging.warning(f"[合并] 删除无效旧文�? {out_file}")
+                logging.warning(f"[合并] 删除无效旧文 {out_file}")
                 os.remove(out_file)
         
         cmd = [
@@ -230,7 +305,7 @@ def merge_videos(config):
                         else:
                             logging.error(f"[合并] 失败: 最终文件不存在")
                     except OSError as e:
-                        logging.error(f"[合并] 失败: 重命名出�?- {e}")
+                        logging.error(f"[合并] 失败: 重命名出- {e}")
                         os.remove(temp_file)
                 else:
                     logging.error(f"[合并] 失败: 输出文件无效")
@@ -249,7 +324,7 @@ def merge_videos(config):
 
 
 def get_video_duration(path):
-    """使用 ffprobe 获取视频时长（秒�?""
+    """使用 ffprobe 获取视频时长（秒"""
     cmd = [
         'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', path
@@ -264,7 +339,7 @@ def get_video_duration(path):
 
 
 def verify_video(path):
-    """使用 ffprobe 验证视频文件完整�?""
+    """使用 ffprobe 验证视频文件完整性"""
     cmd = ['ffprobe', '-v', 'error', '-show_format', '-show_streams', path]
     result = subprocess.run(cmd, capture_output=True)
     return result.returncode == 0
@@ -300,17 +375,17 @@ def compress_videos(config):
         if os.path.exists(out_path):
             existing_size = os.path.getsize(out_path)
             if existing_size > 1048576 and verify_video(out_path):
-                logging.info(f"[压缩] 跳过已存�? {rel_path}")
+                logging.info(f"[压缩] 跳过已存 {rel_path}")
                 mark_processed(mov_path, 'compress')
                 count += 1
                 continue
             else:
-                logging.warning(f"[压缩] 删除无效旧文�? {rel_path}")
+                logging.warning(f"[压缩] 删除无效旧文 {rel_path}")
                 os.remove(out_path)
         
-        logging.info(f"[压缩] 开�? {rel_path}")
+        logging.info(f"[压缩] 开始 {rel_path}")
         
-        # 构建 ffmpeg 命令（输出到临时文件�?
+        # 构建 ffmpeg 命令（输出到临时文件
         cmd = [
             'ffmpeg', '-y', '-i', mov_path,
             '-c:v', 'libx265', '-crf', str(compress_cfg['crf']),
@@ -320,10 +395,10 @@ def compress_videos(config):
             '-tag:v', 'hvc1',
         ]
         
-        # 处理分辨率设�?- 只缩小不放大
+        # 处理分辨率设- 只缩小不放大
         resolution = compress_cfg.get('resolution', '1920x1080')
         if resolution and resolution.lower() != 'original':
-            # 支持 1920x1080 �?1920:-2 �?-2:1080 格式
+            # 支持 1920x1080 1920:-2 -2:1080 格式
             # 添加 force_original_aspect_ratio=decrease 确保只缩小不放大
             scale_vf = resolution.replace('x', ':')
             scale_vf = f"{scale_vf}:force_original_aspect_ratio=decrease"
@@ -333,23 +408,23 @@ def compress_videos(config):
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         
-        # 严格验证流程（参�?xiaomi-compress�?
+        # 严格验证流程（参xiaomi-compress
         if result.returncode == 0 and os.path.exists(temp_path):
             output_size = os.path.getsize(temp_path)
             
-            # 1. 文件大小检查（至少 1MB�?
+            # 1. 文件大小检查（至少 1MB
             if output_size < 1048576:
                 logging.error(f"[压缩] 失败: 输出文件过小 ({output_size} bytes)")
                 os.remove(temp_path)
                 continue
             
-            # 2. ffprobe 完整性验�?
+            # 2. ffprobe 完整性验证"
             if not verify_video(temp_path):
                 logging.error(f"[压缩] 失败: ffprobe 验证未通过")
                 os.remove(temp_path)
                 continue
             
-            # 3. 时长检查（输入输出差异应在 ±30 秒内�?
+            # 3. 时长检查（输入输出差异应在 ±30 秒内
             input_duration = get_video_duration(mov_path)
             output_duration = get_video_duration(temp_path)
             
@@ -361,11 +436,11 @@ def compress_videos(config):
                     continue
                 logging.info(f"[压缩] 时长检查通过: 差异={duration_diff:.1f}s")
             
-            # 4. 重命名临时文件到最终输�?
+            # 4. 重命名临时文件到最终输
             try:
                 os.rename(temp_path, out_path)
             except OSError as e:
-                logging.error(f"[压缩] 失败: 重命名文件出�?- {e}")
+                logging.error(f"[压缩] 失败: 重命名文件出- {e}")
                 os.remove(temp_path)
                 continue
             
@@ -375,13 +450,13 @@ def compress_videos(config):
                 mark_processed(mov_path, 'compress')
                 count += 1
                 
-                # 6. 安全删除源文�?
+                # 6. 安全删除源文
                 if compress_cfg['delete_source']:
                     try:
                         os.remove(mov_path)
                         logging.info(f"[压缩] 已清理源文件: {rel_path}")
                     except OSError as e:
-                        logging.error(f"[压缩] 警告: 无法删除源文�?- {e}")
+                        logging.error(f"[压缩] 警告: 无法删除源文- {e}")
             else:
                 logging.error(f"[压缩] 失败: 最终文件不存在")
         else:
@@ -435,7 +510,7 @@ def upload_videos(config):
             
             if upload_cfg['delete_after_upload']:
                 os.remove(mkv_path)
-                logging.info(f"[上传] 已清�? {mkv_path}")
+                logging.info(f"[上传] 已清 {mkv_path}")
         else:
             logging.info(f"[上传] 失败: {result.stderr}")
     
@@ -443,35 +518,36 @@ def upload_videos(config):
 
 
 def main():
-    log_file = setup_logging()
+    # 先加载配置获取日志设置
+    config = load_config()
+    log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
     logging.info("小米摄像头视频流水线")
     logging.info("="*50)
     
-    config = load_config()
     init_db()
     
     logging.info(f"配置: {CONFIG_FILE}")
-    logging.info(f"数据�? {STATE_DB}")
+    logging.info(f"数据 {STATE_DB}")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"轮询间隔: {config['schedule']['interval']}�?)
+    logging.info(f"轮询间隔: {config['schedule']['interval']}")
     logging.info("-"*50)
     
     while True:
-        logging.info("开始处�?..")
+        logging.info("开始处理..")
         
         merged = merge_videos(config)
         compressed = compress_videos(config)
         uploaded = upload_videos(config)
         
-        logging.info(f"本次处理: 合并{merged}�? 压缩{compressed}�? 上传{uploaded}�?)
+        logging.info(f"本次处理: 合并{merged} 压缩{compressed} 上传{uploaded}")
         
         if config['schedule']['run_once']:
-            logging.info("单次运行模式，退�?)
+            logging.info("单次运行模式，退出")
             break
         
-        logging.info(f"等待 {config['schedule']['interval']} �?..")
+        logging.info(f"等待 {config['schedule']['interval']} ..")
         time.sleep(config['schedule']['interval'])
 
 
