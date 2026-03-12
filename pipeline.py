@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2025 xiaomi-camera-pipeline contributors
+# Copyright (C) 2026 xiaomi-camera-pipeline contributors
 # SPDX-License-Identifier: AGPL-3.0
 #
 # This program is free software: you can redistribute it and/or modify
