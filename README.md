@@ -2,6 +2,10 @@
 
 小米摄像头视频自动化处理流水线：合并 → 压缩 → 上传
 
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://docker.com)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
+
 ## 功能特性
 
 - **合并**：将 1 分钟片段合并为小时级视频
@@ -9,6 +13,7 @@
 - **上传**：WebDAV 限速上传，适合夜间低带宽运行
 - **断点续传**：SQLite 状态数据库，避免重复处理
 - **稳定性保障**：临时文件机制、多重验证、时长检查
+- **编码兼容**：支持 Windows 机房环境和 Docker 容器
 
 ## 引用项目
 
@@ -37,17 +42,36 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-### 本地运行
+### Windows 本地运行（机房环境）
 
 ```bash
 # 1. 安装依赖
-pip install pyyaml
+pip install -r requirements.txt
 
-# 2. 配置
+# 2. 下载 FFmpeg
+# 下载地址: https://github.com/BtbN/FFmpeg-Builds/releases
+# 解压后将 bin 目录添加到系统 PATH
+
+# 3. 配置
+cp config.yaml.example config.yaml
+# 编辑 config.yaml，修改目录路径为 Windows 格式
+
+# 4. 运行
+python pipeline.py
+```
+
+### Linux/macOS 本地运行
+
+```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 确保 FFmpeg 已安装
+ffmpeg -version
+
+# 3. 配置并运行
 cp config.yaml.example config.yaml
 # 编辑 config.yaml
-
-# 3. 运行
 python pipeline.py
 ```
 
@@ -97,7 +121,70 @@ schedule:
 
 ```bash
 # crontab 示例：每天凌晨 2 点运行
-0 2 * * * cd /path/to/xiaomi-camera-pipeline && docker-compose up
+0 2 * * * cd /path/to/xiaomi-camera-pipeline && python pipeline.py
+```
+
+## 编码与国际化
+
+### Windows 机房环境
+Windows 机房常见的还原卡可能导致控制台编码被重置为 GBK。代码已自动检测并处理：
+
+```python
+# 代码中自动处理（无需手动配置）
+if sys.platform == 'win32':
+    os.environ['LC_ALL'] = 'zh_CN.UTF-8'
+    # 强制 stdout/stderr 使用 UTF-8
+```
+
+### Docker 环境
+Dockerfile 已预配置 UTF-8 locale：
+
+```dockerfile
+RUN locale-gen zh_CN.UTF-8 en_US.UTF-8 C.UTF-8 \
+    && update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONIOENCODING=utf-8
+```
+
+### 手动设置编码
+如果遇到乱码，可以手动设置环境变量：
+
+```bash
+# Windows PowerShell
+$env:PYTHONIOENCODING="utf-8"
+$env:LC_ALL="zh_CN.UTF-8"
+
+# Linux/macOS
+export PYTHONIOENCODING=utf-8
+export LC_ALL=C.UTF-8
+```
+
+## 日志配置
+
+日志同时输出到文件和控制台，日志文件位于 `logs/pipeline.log`。
+
+### 日志级别
+
+通过环境变量设置日志级别：
+
+```bash
+# 只显示警告和错误
+LOG_LEVEL=WARNING python pipeline.py
+
+# 调试模式（显示详细信息）
+LOG_LEVEL=DEBUG python pipeline.py
+```
+
+### Docker 日志
+
+```bash
+# 查看实时日志
+docker-compose logs -f
+
+# 查看最近 100 行
+docker-compose logs --tail=100
 ```
 
 ## 稳定性机制
@@ -129,10 +216,60 @@ schedule:
 | `CONFIG_FILE` | `/app/config.yaml` | 配置文件路径 |
 | `STATE_DB` | `/app/pipeline.db` | SQLite 数据库路径 |
 | `LOG_DIR` | `/logs` | 日志目录 |
+| `LOG_LEVEL` | `INFO` | 日志级别 (DEBUG/INFO/WARNING/ERROR) |
 | `COMPRESS_RESOLUTION` | - | 覆盖分辨率设置 |
 | `COMPRESS_CRF` | - | 覆盖 CRF 质量设置 |
 | `COMPRESS_THREADS` | - | 覆盖线程数设置 |
+| `COMPRESS_PRESET` | - | 覆盖编码预设 |
+
+## 故障排除
+
+### 中文乱码
+
+**现象**：日志或控制台显示乱码
+
+**解决**：
+1. 确保设置环境变量 `PYTHONIOENCODING=utf-8`
+2. Windows 下使用 PowerShell 而非 CMD
+3. Docker 环境已预配置，无需处理
+
+### FFmpeg 未找到
+
+**现象**：报错 `ffmpeg not found`
+
+**解决**：
+```bash
+# 检查 FFmpeg 是否安装
+ffmpeg -version
+
+# Windows 下将 FFmpeg bin 目录添加到系统 PATH
+```
+
+### 权限问题
+
+**现象**：无法读取视频文件或写入输出目录
+
+**解决**：
+```bash
+# Docker 下检查目录权限
+chmod 755 /path/to/video
+
+# Windows 下以管理员身份运行
+```
+
+## 开发
+
+```bash
+# 安装开发依赖
+pip install -r requirements.txt
+
+# 代码检查
+python -m py_compile pipeline.py
+
+# 本地测试
+python pipeline.py
+```
 
 ## 许可证
 
-AGPL-3.0
+[AGPL-3.0](LICENSE) © 2026 xiaomi-camera-pipeline contributors
