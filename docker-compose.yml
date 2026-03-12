@@ -18,6 +18,10 @@ services:
       - CONFIG_FILE=/app/config.yaml
       - STATE_DB=/app/pipeline.db
       - LOG_DIR=/logs
+      # 编码设置（避免中文乱码）
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - PYTHONIOENCODING=utf-8
       # 压缩配置（可选，会覆盖 config.yaml 中的设置）
       - COMPRESS_RESOLUTION=1920x1080  # 可选: original(保持原分辨率), 1920x1080, -2:1080(等高), 1920:-2(等宽)
       - COMPRESS_CRF=32                # 质量 (18-35)
