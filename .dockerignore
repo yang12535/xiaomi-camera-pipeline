@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 日志和数据库
+logs/
+*.log
+*.db
+
+# 输入输出目录（运行数据）
+input/
+output/
+video/
+
+# 配置文件（运行时复制）
+config.yaml
+
+# 文档（不需要在镜像中）
+*.md
+CHANGELOG.md
+LICENSE
+
+# 其他
+*.zip
+*.tar.gz
+.DS_Store
+Thumbs.db
