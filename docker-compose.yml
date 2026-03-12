@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  pipeline:
+    build: .
+    container_name: xiaomi-camera-pipeline
+    restart: unless-stopped
+    
+    volumes:
+      - /path/to/xiaomi/video:/video:ro
+      - ./input:/input
+      - ./output:/output
+      - ./logs:/logs
+      - ./config.yaml:/app/config.yaml:ro
+      - ./pipeline.db:/app/pipeline.db
+    
+    environment:
+      - CONFIG_FILE=/app/config.yaml
+      - STATE_DB=/app/pipeline.db
+      - LOG_DIR=/logs
+      # 压缩配置（可选，会覆盖 config.yaml 中的设置）
+      - COMPRESS_RESOLUTION=1920x1080  # 可选: original(保持原分辨率), 1920x1080, -2:1080(等高), 1920:-2(等宽)
+      - COMPRESS_CRF=32                # 质量 (18-35)
+      - COMPRESS_THREADS=4             # 压缩线程数
+    
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 2G
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

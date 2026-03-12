@@ -1,0 +1,36 @@
+# 小米摄像头视频流水线配置
+
+# 阶段1：合并
+merge:
+  source_dir: /video           # 小米摄像头原始视频目录
+  output_dir: /input           # 合并后的 MOV 文件目录
+  delete_source: true          # 合并后是否删除源目录
+
+# 阶段2：压缩
+compress:
+  input_dir: /input            # 输入目录（合并后的 MOV）
+  output_dir: /output          # 输出目录（压缩后的 MKV）
+  crf: 32                      # 质量 (18-35, 越小质量越好)
+  preset: medium               # 编码速度预设 (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
+  threads: 4                   # 编码线程数
+  # 分辨率设置：
+  # - "original"    保持原始分辨率（不缩放）
+  # - "1920x1080"   强制缩放到 1920x1080
+  # - "-2:1080"     按高度 1080 等比例缩放（自动计算宽度）
+  # - "1920:-2"     按宽度 1920 等比例缩放（自动计算高度）
+  resolution: 1920x1080
+  delete_source: true          # 压缩后是否删除源文件
+
+# 阶段3：上传（可选）
+upload:
+  enabled: false               # 是否启用上传
+  webdav_url: https://example.com/dav/    # WebDAV 服务器地址
+  webdav_user: username                   # WebDAV 用户名
+  webdav_pass: password                   # WebDAV 密码
+  rate_limit: 1M                          # 上传限速 (例如: 500K, 1M, 5M)
+  delete_after_upload: true               # 上传后是否删除本地文件
+
+# 调度配置
+schedule:
+  interval: 3600               # 轮询间隔（秒），默认 1 小时
+  run_once: false              # 单次运行模式（处理完立即退出）
