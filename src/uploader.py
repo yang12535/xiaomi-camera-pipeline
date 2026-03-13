@@ -71,7 +71,7 @@ def upload_videos(config):
         cmd = [
             'curl', '-T', mkv_path, remote_url,
             '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
-            '--limit-rate', upload_cfg['rate_limit'],
+            '--limit-rate', str(upload_cfg['rate_limit']),
             '-f', '-S',
             '--connect-timeout', '60',
             '--max-time', '1800',
