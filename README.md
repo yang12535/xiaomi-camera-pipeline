@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-v1.2.2-orange.svg)](VERSION)
 
-> 自动化视频处理流水线：合并 → 压缩 → 上传（支持断点续传）
+> 自动化视频处理流水线：合并 → 压缩 → ~~上传~~（上传功能暂不可用，网络限速调试中）
 
 ## 功能特性
 
@@ -44,7 +44,7 @@ cd xiaomi-camera-pipeline
 复制配置模板：
 
 ```bash
-cp config.yaml.example config.yaml
+cp config/config.yaml.example config.yaml
 ```
 
 编辑 `config.yaml`：
@@ -69,7 +69,7 @@ compress:
 # 上传配置
 upload:
   enabled: true
-  webdav_url: http://your-openlist-ip:5246/dav/baidu/视频归档
+  webdav_url: http://YOUR_OPENLIST_IP:5246/dav/baidu/视频归档
   webdav_user: admin
   webdav_pass: your_password
   rate_limit: 2M       # 上传限速，避免占满带宽
@@ -141,7 +141,7 @@ v1.2.2+ 支持断点续传：
 
 ### Q: 上传速度慢？
 
-检查 OpenList/Alsit 的网络限速：
+检查 OpenList/Alist 的网络限速：
 ```bash
 # 在宿主机执行
 tc qdisc show

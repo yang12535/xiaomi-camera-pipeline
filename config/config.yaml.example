@@ -46,7 +46,7 @@ upload:
   
   # WebDAV 服务器地址
   # 支持 OpenList/Alist 等 WebDAV 服务
-  webdav_url: http://192.168.31.66:5246/dav/baidu/视频归档
+  webdav_url: http://YOUR_OPENLIST_IP:5246/dav/baidu/视频归档
   
   # WebDAV 用户名
   webdav_user: admin
