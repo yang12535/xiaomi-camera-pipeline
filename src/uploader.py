@@ -106,7 +106,9 @@ def upload_videos(config):
                 uploaded_size = file_size
                 speed = 0
                 
-                for line in result.stderr.split('\n'):
+                # 从 stdout 解析 -w 输出，从 stderr 解析错误信息
+                output = result.stdout + '\n' + result.stderr
+                for line in output.split('\n'):
                     if 'HTTP' in line:
                         try:
                             http_code = int(line.replace('HTTP', '').strip())
