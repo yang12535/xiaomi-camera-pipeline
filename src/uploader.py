@@ -37,8 +37,8 @@ def upload_videos(config):
     
     count = 0
     resume_enabled = upload_cfg.get('resume', True)
-    max_retries = upload_cfg.get('max_retries', 3)
-    retry_delay = upload_cfg.get('retry_delay', 30)
+    max_retries = upload_cfg.get('max_retries', 5)
+    retry_delay = upload_cfg.get('retry_delay', 60)
     
     for mkv_path in mkv_files:
         if is_processed(mkv_path, 'upload'):
@@ -73,8 +73,9 @@ def upload_videos(config):
             '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
             '--limit-rate', upload_cfg['rate_limit'],
             '-f', '-S',
-            '--connect-timeout', '30',
-            '--max-time', '0',
+            '--connect-timeout', '60',
+            '--max-time', '1800',
+            '--retry', '0',
         ]
         
         if resume_enabled and progress and progress['uploaded'] > 0:
