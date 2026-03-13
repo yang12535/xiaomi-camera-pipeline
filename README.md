@@ -4,7 +4,9 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-v1.2.2-orange.svg)](VERSION)
 
-> 自动化视频处理流水线：合并 → 压缩 → ~~上传~~（上传功能暂不可用，网络限速调试中）
+> 自动化视频处理流水线：合并 → 压缩 → ~~上传~~
+
+⚠️ **上传功能暂不可用** - Docker 网络限速调试中，建议禁用上传或等待修复
 
 ## 功能特性
 
