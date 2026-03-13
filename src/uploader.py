@@ -71,12 +71,16 @@ def upload_videos(config):
         cmd = [
             'curl', '-T', mkv_path, remote_url,
             '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
-            '--limit-rate', str(upload_cfg['rate_limit']),
             '-f', '-S',
             '--connect-timeout', '60',
             '--max-time', '1800',
             '--retry', '0',
         ]
+        
+        # 仅在 rate_limit > 0 时添加限速
+        rate_limit = upload_cfg.get('rate_limit', 0)
+        if rate_limit and str(rate_limit) not in ['0', '']:
+            cmd.extend(['--limit-rate', str(rate_limit)])
         
         if resume_enabled and progress and progress['uploaded'] > 0:
             cmd.extend(['-C', '-'])
