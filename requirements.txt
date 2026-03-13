@@ -1,0 +1,8 @@
+# 小米摄像头视频处理流水线依赖
+# 安装: pip install -r requirements.txt
+
+# 核心依赖
+pyyaml>=5.4.1
+
+# 可选依赖（Windows 环境建议安装）
+# pywin32>=227; platform_system=="Windows"
