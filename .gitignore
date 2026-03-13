@@ -57,3 +57,4 @@ desktop.ini
 *.zip
 *.tar.gz
 *.7z
+LOCAL_TEST_LOG.md
