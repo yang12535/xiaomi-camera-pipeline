@@ -1,0 +1,21 @@
+# 上传优化配置
+upload:
+  enabled: true
+  webdav_url: http://your-openlist-ip:5246/dav/baidu/视频归档
+  webdav_user: admin
+  webdav_pass: your_password
+  
+  # 取消限速（让百度自己限速，避免双重限制）
+  # 或者设为合理的 2M（约 200KB/s 实际）
+  rate_limit: 2M
+  
+  # 上传后不删除（保留本地备份直到确认百度有）
+  delete_after_upload: false
+  
+  # 断点续传（防止长时间上传中断）
+  resume: true
+  max_retries: 5
+  retry_delay: 60  # 失败后等1分钟再试
+  
+  # 大文件分片（如果支持）
+  # chunk_size: 10M

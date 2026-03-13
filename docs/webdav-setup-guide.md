@@ -33,7 +33,7 @@ upload:
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `webdav_url` | WebDAV server address | `http://192.168.1.100:5244/dav/baidu/archive` |
+| `webdav_url` | WebDAV server address | `http://your-openlist-ip:5246/dav/baidu/archive` |
 | `webdav_user` | Username | `admin` |
 | `webdav_pass` | Password | `your_password` |
 | `rate_limit` | Upload speed limit | `1M` (1MB/s), `100M` (no limit), `0` (no limit) |
@@ -195,7 +195,7 @@ Server B (WebDAV + Rate Limiting)
 # config.yaml
 upload:
   enabled: true
-  webdav_url: "http://192.168.31.66:5246/dav/baidu/archive"
+  webdav_url: "http://your-openlist-ip:5246/dav/baidu/archive"
   webdav_user: "admin"
   webdav_pass: "your_password"
   rate_limit: "100M"  # No limit on LAN

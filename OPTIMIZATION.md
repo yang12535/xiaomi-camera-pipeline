@@ -64,7 +64,7 @@ ENV LANG=en_US.UTF-8 \
 |-------|--------|-------|
 | Version warning | version: "3.8" | Removed version line |
 | Database file mount failure | File mount ./pipeline.db | Directory mount ./data |
-| Personal paths | /vol2/1000/2/... | Generic paths /path/to/... |
+| Personal paths | /path/to/... | Generic paths /path/to/... |
 | Missing comments | Unclear configuration items | Detailed comments added |
 
 ---

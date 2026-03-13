@@ -3,61 +3,39 @@
 # Copyright (C) 2026 xiaomi-camera-pipeline contributors
 # SPDX-License-Identifier: AGPL-3.0
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# v1.2.2 - 断点续传 + 进度监控 + 监控场景优化
 
-"""
-小米摄像头视频流水线
-阶段：合并 → 压缩 → 上传
-
-本项目整合自：
-- 合并功能: https://github.com/hslr-s/xiaomi-camera-merge
-- 压缩功能: https://github.com/yang12535/xiaomi-compress
-"""
-
-import urllib.parse
 import os
-import urllib.parse
 import sys
-import urllib.parse
 import io
 
-# ========== 强制 UTF-8 编码配置（Windows 机房环境）==========
+# ========== 强制 UTF-8 编码配置 ==========
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-# Windows 环境下强制设置 stdout/stderr 编码（机房还原卡问题）
 if sys.platform == 'win32':
     os.environ['LC_ALL'] = 'zh_CN.UTF-8'
     os.environ['LANG'] = 'zh_CN.UTF-8'
-    # 仅在 Windows 下强制重定向 stdout/stderr
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
         sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
     except (AttributeError, OSError):
-        pass  # 某些环境下 buffer 可能不可用
+        pass
 else:
-    # Linux/Docker 环境：使用 C.UTF-8（无需额外安装）
     os.environ.setdefault('LC_ALL', 'C.UTF-8')
     os.environ.setdefault('LANG', 'C.UTF-8')
 # ===================================================
+
 import time
 import yaml
 import subprocess
 import sqlite3
 import shutil
 import logging
+import json
+import re
 from datetime import datetime
+from urllib.parse import quote
 
 DEFAULT_CONFIG = {
     'merge': {
@@ -71,7 +49,7 @@ DEFAULT_CONFIG = {
         'crf': 35,
         'preset': 'medium',
         'threads': 4,
-        'resolution': '1920x1080',  # 默认 1080p
+        'resolution': '1920x1080',
         'delete_source': True,
     },
     'upload': {
@@ -81,6 +59,9 @@ DEFAULT_CONFIG = {
         'webdav_pass': '',
         'rate_limit': '1M',
         'delete_after_upload': True,
+        'resume': True,           # 断点续传
+        'max_retries': 3,         # 最大重试次数
+        'retry_delay': 30,        # 重试间隔(秒)
     },
     'schedule': {
         'interval': 3600,
@@ -106,7 +87,7 @@ def load_config():
                 if key in user_config:
                     config[key].update(user_config[key])
     
-    # 环境变量覆盖（支COMPRESS_* 前缀
+    # 环境变量覆盖
     if os.getenv('COMPRESS_RESOLUTION'):
         config['compress']['resolution'] = os.getenv('COMPRESS_RESOLUTION')
     if os.getenv('COMPRESS_CRF'):
@@ -120,19 +101,10 @@ def load_config():
 
 
 def setup_logging(config=None):
-    """配置日志：同时输出到文件和 stdout
-    
-    Args:
-        config: 日志配置字典，包含 level, format, retain_days
-    
-    Returns:
-        log_file: 日志文件路径
-    """
     log_dir = os.getenv('LOG_DIR', '/logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'pipeline.log')
     
-    # 从配置或环境变量获取日志级别
     if config and 'level' in config:
         level_str = config['level']
     else:
@@ -140,13 +112,11 @@ def setup_logging(config=None):
     
     level = getattr(logging, level_str.upper(), logging.INFO)
     
-    # 日志格式
     if config and 'format' in config:
         fmt = config['format']
     else:
         fmt = '%(asctime)s - %(levelname)s - %(message)s'
     
-    # 配置根日志记录器
     logging.basicConfig(
         level=level,
         format=fmt,
@@ -157,15 +127,13 @@ def setup_logging(config=None):
         ]
     )
     
-    # 清理旧日志文件
     _cleanup_old_logs(log_dir, config)
     
     return log_file
 
 
 def _cleanup_old_logs(log_dir, config=None):
-    """清理超过保留天数的旧日志文件"""
-    retain_days = 30  # 默认 30 天
+    retain_days = 30
     if config and 'retain_days' in config:
         retain_days = config['retain_days']
     
@@ -182,14 +150,19 @@ def _cleanup_old_logs(log_dir, config=None):
                         os.remove(filepath)
                         logging.debug(f"已清理旧日志: {filename}")
     except OSError:
-        pass  # 清理失败不影响主程序
+        pass
 
 
 def init_db():
     conn = sqlite3.connect(STATE_DB)
     c = conn.cursor()
+    # 处理记录
     c.execute('''CREATE TABLE IF NOT EXISTS processed
                  (path TEXT PRIMARY KEY, stage TEXT, timestamp TEXT)''')
+    # 上传进度（断点续传）
+    c.execute('''CREATE TABLE IF NOT EXISTS upload_progress
+                 (file_path TEXT PRIMARY KEY, remote_url TEXT, uploaded_size INTEGER, 
+                  total_size INTEGER, last_try TEXT, retry_count INTEGER DEFAULT 0)''')
     conn.commit()
     conn.close()
 
@@ -210,6 +183,51 @@ def mark_processed(path, stage):
               (path, stage, datetime.now().isoformat()))
     conn.commit()
     conn.close()
+
+
+def get_upload_progress(file_path):
+    """获取文件上传进度"""
+    conn = sqlite3.connect(STATE_DB)
+    c = conn.cursor()
+    c.execute('SELECT remote_url, uploaded_size, total_size, retry_count FROM upload_progress WHERE file_path=?', (file_path,))
+    result = c.fetchone()
+    conn.close()
+    if result:
+        return {'remote_url': result[0], 'uploaded': result[1], 'total': result[2], 'retries': result[3]}
+    return None
+
+
+def save_upload_progress(file_path, remote_url, uploaded_size, total_size):
+    """保存上传进度"""
+    conn = sqlite3.connect(STATE_DB)
+    c = conn.cursor()
+    c.execute('''INSERT OR REPLACE INTO upload_progress 
+                 VALUES (?, ?, ?, ?, ?, COALESCE((SELECT retry_count FROM upload_progress WHERE file_path=?), 0))''',
+              (file_path, remote_url, uploaded_size, total_size, datetime.now().isoformat(), file_path))
+    conn.commit()
+    conn.close()
+
+
+def clear_upload_progress(file_path):
+    """清除上传进度（上传成功或放弃）"""
+    conn = sqlite3.connect(STATE_DB)
+    c = conn.cursor()
+    c.execute('DELETE FROM upload_progress WHERE file_path=?', (file_path,))
+    conn.commit()
+    conn.close()
+
+
+def increment_retry_count(file_path):
+    """增加重试计数"""
+    conn = sqlite3.connect(STATE_DB)
+    c = conn.cursor()
+    c.execute('UPDATE upload_progress SET retry_count = retry_count + 1, last_try = ? WHERE file_path=?',
+              (datetime.now().isoformat(), file_path))
+    conn.commit()
+    c.execute('SELECT retry_count FROM upload_progress WHERE file_path=?', (file_path,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else 0
 
 
 def get_video_dirs(source_dir):
@@ -256,10 +274,8 @@ def merge_videos(config):
             continue
         
         concat_file = os.path.join(os.environ.get('TEMP', '/tmp'), f"concat_{dir_name}.txt")
-        # 使用 utf-8-sig 会带 BOM，用 utf-8 不带 BOM
         with open(concat_file, 'w', encoding='utf-8', newline='\n') as f:
             for mp4 in mp4_files:
-                # Windows 路径转为正斜杠以兼容 ffmpeg
                 file_path = os.path.join(video_dir, mp4).replace('\\', '/')
                 f.write(f"file '{file_path}'\n")
         
@@ -271,7 +287,6 @@ def merge_videos(config):
         out_file = os.path.join(out_dir, f"{hour}.mov")
         temp_file = out_file.replace('.mov', '.tmp.mov')
         
-        # 跳过已存在的有效文件
         if os.path.exists(out_file):
             if verify_video(out_file):
                 logging.info(f"[合并] 跳过已存 {out_file}")
@@ -293,7 +308,6 @@ def merge_videos(config):
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0 and os.path.exists(temp_file):
-                # 验证输出文件
                 if os.path.getsize(temp_file) > 1048576 and verify_video(temp_file):
                     try:
                         os.rename(temp_file, out_file)
@@ -303,8 +317,11 @@ def merge_videos(config):
                             count += 1
                             
                             if merge_cfg['delete_source']:
-                                shutil.rmtree(video_dir)
-                                logging.info(f"[合并] 已清理源目录: {video_dir}")
+                                try:
+                                    shutil.rmtree(video_dir)
+                                    logging.info(f"[合并] 已清理源目录: {video_dir}")
+                                except OSError as e:
+                                    logging.warning(f"[合并] 无法清理源目录（只读挂载）: {video_dir}, 错误: {e}")
                         else:
                             logging.error(f"[合并] 失败: 最终文件不存在")
                     except OSError as e:
@@ -327,7 +344,6 @@ def merge_videos(config):
 
 
 def get_video_duration(path):
-    """使用 ffprobe 获取视频时长（秒"""
     cmd = [
         'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', path
@@ -342,7 +358,6 @@ def get_video_duration(path):
 
 
 def verify_video(path):
-    """使用 ffprobe 验证视频文件完整性"""
     cmd = ['ffprobe', '-v', 'error', '-show_format', '-show_streams', path]
     result = subprocess.run(cmd, capture_output=True)
     return result.returncode == 0
@@ -374,7 +389,6 @@ def compress_videos(config):
         temp_path = out_path.replace('.mkv', '.tmp.mkv')
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         
-        # 跳过已存在的有效文件
         if os.path.exists(out_path):
             existing_size = os.path.getsize(out_path)
             if existing_size > 1048576 and verify_video(out_path):
@@ -388,7 +402,6 @@ def compress_videos(config):
         
         logging.info(f"[压缩] 开始 {rel_path}")
         
-        # 构建 ffmpeg 命令（输出到临时文件
         cmd = [
             'ffmpeg', '-y', '-i', mov_path,
             '-c:v', 'libx265', '-crf', str(compress_cfg['crf']),
@@ -398,11 +411,8 @@ def compress_videos(config):
             '-tag:v', 'hvc1',
         ]
         
-        # 处理分辨率设- 只缩小不放大
         resolution = compress_cfg.get('resolution', '1920x1080')
         if resolution and resolution.lower() != 'original':
-            # 支持 1920x1080 1920:-2 -2:1080 格式
-            # 添加 force_original_aspect_ratio=decrease 确保只缩小不放大
             scale_vf = resolution.replace('x', ':')
             scale_vf = f"{scale_vf}:force_original_aspect_ratio=decrease"
             cmd.extend(['-vf', f'scale={scale_vf}'])
@@ -411,23 +421,19 @@ def compress_videos(config):
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         
-        # 严格验证流程（参xiaomi-compress
         if result.returncode == 0 and os.path.exists(temp_path):
             output_size = os.path.getsize(temp_path)
             
-            # 1. 文件大小检查（至少 1MB
             if output_size < 1048576:
                 logging.error(f"[压缩] 失败: 输出文件过小 ({output_size} bytes)")
                 os.remove(temp_path)
                 continue
             
-            # 2. ffprobe 完整性验证"
             if not verify_video(temp_path):
                 logging.error(f"[压缩] 失败: ffprobe 验证未通过")
                 os.remove(temp_path)
                 continue
             
-            # 3. 时长检查（输入输出差异应在 ±30 秒内
             input_duration = get_video_duration(mov_path)
             output_duration = get_video_duration(temp_path)
             
@@ -439,7 +445,6 @@ def compress_videos(config):
                     continue
                 logging.info(f"[压缩] 时长检查通过: 差异={duration_diff:.1f}s")
             
-            # 4. 重命名临时文件到最终输
             try:
                 os.rename(temp_path, out_path)
             except OSError as e:
@@ -447,13 +452,11 @@ def compress_videos(config):
                 os.remove(temp_path)
                 continue
             
-            # 5. 确认最终文件存在后标记完成
             if os.path.exists(out_path):
                 logging.info(f"[压缩] 成功: {rel_path} ({output_size / 1024 / 1024:.1f} MB)")
                 mark_processed(mov_path, 'compress')
                 count += 1
                 
-                # 6. 安全删除源文
                 if compress_cfg['delete_source']:
                     try:
                         os.remove(mov_path)
@@ -463,7 +466,6 @@ def compress_videos(config):
             else:
                 logging.error(f"[压缩] 失败: 最终文件不存在")
         else:
-            # ffmpeg 执行失败或临时文件不存在
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             logging.error(f"[压缩] 失败: ffmpeg 退出码 {result.returncode}")
@@ -473,14 +475,55 @@ def compress_videos(config):
     return count
 
 
+def format_size(size_bytes):
+    """格式化文件大小"""
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    elif size_bytes < 1024**2:
+        return f"{size_bytes/1024:.1f}KB"
+    elif size_bytes < 1024**3:
+        return f"{size_bytes/1024**2:.1f}MB"
+    else:
+        return f"{size_bytes/1024**3:.2f}GB"
+
+
+def format_speed(bytes_per_sec):
+    """格式化速度"""
+    if bytes_per_sec < 1024:
+        return f"{bytes_per_sec}B/s"
+    elif bytes_per_sec < 1024**2:
+        return f"{bytes_per_sec/1024:.1f}KB/s"
+    else:
+        return f"{bytes_per_sec/1024**2:.2f}MB/s"
+
+
+def parse_progress_from_stderr(stderr_line):
+    """解析 ffmpeg curl 的进度输出"""
+    # 匹配类似:  0  820M    0 15250    0     0   8697      0  27:22:46  0:00:01  27:22:45 15250
+    match = re.search(r'(\d+)\s+([\d.]+)([kMG]?)\s+(\d+)\s+([\d.]+)([kMG]?)\s+', stderr_line)
+    if match:
+        try:
+            total_size_str = match.group(2) + match.group(3)
+            uploaded_size_str = match.group(5) + match.group(6)
+            
+            multiplier = {'': 1, 'k': 1024, 'M': 1024**2, 'G': 1024**3}
+            total = float(match.group(2)) * multiplier.get(match.group(3), 1)
+            uploaded = float(match.group(5)) * multiplier.get(match.group(6), 1)
+            return int(uploaded), int(total)
+        except:
+            pass
+    return None, None
+
+
 def upload_videos(config):
+    """带断点续传和进度监控的上传功能"""
     upload_cfg = config['upload']
     if not upload_cfg['enabled']:
         return 0
     
-    # 支持动态日期路径
     import datetime
-    date_path = datetime.datetime.now().strftime('%Y/%m/%d')  # 2026/03
+    # 使用本地时区（容器设置了 TZ=Asia/Shanghai）
+    date_path = datetime.datetime.now().strftime('%Y/%m/%d')  # 本地时间，非 UTC
     
     output_dir = config['compress']['output_dir']
     if not os.path.exists(output_dir):
@@ -493,19 +536,28 @@ def upload_videos(config):
                 mkv_files.append(os.path.join(root, f))
     
     count = 0
+    resume_enabled = upload_cfg.get('resume', True)
+    max_retries = upload_cfg.get('max_retries', 3)
+    retry_delay = upload_cfg.get('retry_delay', 30)
+    
     for mkv_path in mkv_files:
         if is_processed(mkv_path, 'upload'):
             continue
         
         filename = os.path.basename(mkv_path)
+        file_size = os.path.getsize(mkv_path)
         
-        # 动态构建远程路径: url/2026/03/filename.mkv
         base_url = upload_cfg['webdav_url'].rstrip('/')
-        remote_url = f"{base_url}/{date_path}/{urllib.parse.quote(filename)}"
+        remote_url = f"{base_url}/{date_path}/{quote(filename)}"
         
-        logging.info(f"[上传] {filename} -> {date_path}/")
+        logging.info(f"[上传] {filename} ({format_size(file_size)}) -> {date_path}/")
         
-        # 逐级创建目录 年/月/日
+        # 检查之前的上传进度
+        progress = get_upload_progress(mkv_path) if resume_enabled else None
+        if progress:
+            logging.info(f"[上传] 发现未完成上传: {format_size(progress['uploaded'])}/{format_size(progress['total'])}")
+        
+        # 创建目录结构
         path_parts = date_path.split('/')
         current_path = base_url
         for part in path_parts:
@@ -515,46 +567,126 @@ def upload_videos(config):
                 '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
                 '-f', '-s'
             ]
-            subprocess.run(mkcol_cmd, capture_output=True)  # 忽略已存在错误
+            subprocess.run(mkcol_cmd, capture_output=True)
         
+        # 构建 curl 命令
         cmd = [
             'curl', '-T', mkv_path, remote_url,
             '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
             '--limit-rate', upload_cfg['rate_limit'],
-            '-f'
+            '-f', '-S',  # 显示错误，静默模式
+            '--connect-timeout', '30',
+            '--max-time', '0',  # 无限制（大文件）
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            logging.info(f"[上传] 成功: {filename}")
-            mark_processed(mkv_path, 'upload')
-            count += 1
+        # 断点续传
+        if resume_enabled and progress and progress['uploaded'] > 0:
+            cmd.extend(['-C', '-'])  # 自动断点续传
+            logging.info(f"[上传] 启用断点续传，从 {format_size(progress['uploaded'])} 继续")
+        
+        # 添加进度输出
+        cmd.extend(['-o', '/dev/null', '-w', 
+                    'HTTP%{http_code}\nSize:%{size_upload}\nSpeed:%{speed_upload}\n'])
+        
+        # 执行上传（带重试）
+        attempt = 0
+        success = False
+        
+        while attempt < max_retries and not success:
+            if attempt > 0:
+                logging.info(f"[上传] 第 {attempt+1}/{max_retries} 次尝试...")
+                time.sleep(retry_delay)
             
-            if upload_cfg['delete_after_upload']:
-                os.remove(mkv_path)
-                logging.info(f"[上传] 已删除本地文件: {mkv_path}")
-        else:
-            logging.error(f"[上传] 失败: {result.stderr}")
+            start_time = time.time()
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            elapsed = time.time() - start_time
+            
+            if result.returncode == 0:
+                # 解析 curl 输出
+                http_code = None
+                uploaded_size = file_size
+                speed = 0
+                
+                for line in result.stderr.split('\n'):
+                    if 'HTTP' in line:
+                        try:
+                            http_code = int(line.replace('HTTP', '').strip())
+                        except:
+                            pass
+                    if 'Speed:' in line:
+                        try:
+                            speed_str = line.split(':')[1].strip()
+                            speed = int(speed_str) if speed_str.isdigit() else 0
+                        except:
+                            pass
+                
+                # 验证上传成功
+                if http_code in [200, 201, 204]:
+                    success = True
+                    avg_speed = file_size / elapsed if elapsed > 0 else 0
+                    logging.info(f"[上传] 成功: {filename} (平均速度: {format_speed(avg_speed)})")
+                    mark_processed(mkv_path, 'upload')
+                    clear_upload_progress(mkv_path)
+                    count += 1
+                    
+                    if upload_cfg['delete_after_upload']:
+                        os.remove(mkv_path)
+                        logging.info(f"[上传] 已删除本地文件: {mkv_path}")
+                else:
+                    logging.warning(f"[上传] 可能失败，HTTP 状态: {http_code}")
+                    attempt += 1
+            else:
+                logging.error(f"[上传] 失败: {result.stderr[:200]}")
+                
+                # 保存进度（如果支持断点续传）
+                if resume_enabled:
+                    # 尝试获取已上传大小（通过检查远程文件）
+                    check_cmd = [
+                        'curl', '-I', remote_url,
+                        '--user', f"{upload_cfg['webdav_user']}:{upload_cfg['webdav_pass']}",
+                        '-f', '-s'
+                    ]
+                    check_result = subprocess.run(check_cmd, capture_output=True, text=True)
+                    remote_size = 0
+                    for line in check_result.stdout.split('\n'):
+                        if 'Content-Length:' in line:
+                            try:
+                                remote_size = int(line.split(':')[1].strip())
+                            except:
+                                pass
+                    
+                    if remote_size > 0:
+                        save_upload_progress(mkv_path, remote_url, remote_size, file_size)
+                        logging.info(f"[上传] 已保存进度: {format_size(remote_size)}/{format_size(file_size)}")
+                    
+                    retry_count = increment_retry_count(mkv_path)
+                    if retry_count >= max_retries:
+                        logging.error(f"[上传] 超过最大重试次数 ({max_retries})，放弃上传")
+                        clear_upload_progress(mkv_path)
+                        break
+                
+                attempt += 1
+        
+        if not success:
+            logging.error(f"[上传] 最终失败: {filename}")
     
     return count
 
 
-
 def main():
-    # 先加载配置获取日志设置
     config = load_config()
     log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
-    logging.info("小米摄像头视频流水线")
+    logging.info("小米摄像头视频流水线 v1.2.2")
     logging.info("="*50)
     
     init_db()
     
     logging.info(f"配置: {CONFIG_FILE}")
-    logging.info(f"数据 {STATE_DB}")
+    logging.info(f"数据: {STATE_DB}")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"轮询间隔: {config['schedule']['interval']}")
+    logging.info(f"轮询间隔: {config['schedule']['interval']}秒")
     logging.info("-"*50)
     
     while True:
@@ -570,7 +702,7 @@ def main():
             logging.info("单次运行模式，退出")
             break
         
-        logging.info(f"等待 {config['schedule']['interval']} ..")
+        logging.info(f"等待 {config['schedule']['interval']}秒 ..")
         time.sleep(config['schedule']['interval'])
 
 

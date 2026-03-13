@@ -1,0 +1,91 @@
+# 小米摄像头视频流水线配置 v1.2.2
+
+# ========== 合并配置 ==========
+merge:
+  # 视频源目录（小米摄像头原始视频片段）
+  source_dir: /video
+  # 合并中间文件目录（MOV 格式）
+  output_dir: /input
+  # 合并后删除源目录
+  delete_source: true
+
+# ========== 压缩配置 ==========
+compress:
+  # 输入目录（MOV 文件）
+  input_dir: /input
+  # 输出目录（MKV 文件）
+  output_dir: /output
+  
+  # CRF 值（恒定质量模式）
+  # 范围 0-51，越小质量越好文件越大
+  # 监控场景推荐 35-40（平衡清晰度和体积）
+  crf: 35
+  
+  # 压缩预设（速度 vs 压缩率权衡）
+  # ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+  # 监控场景推荐 veryfast（快速处理，文件稍大）
+  preset: medium
+  
+  # 编码线程数
+  threads: 4
+  
+  # 输出分辨率
+  # original = 保持原分辨率
+  # 1920x1080 = 1080P（推荐，节省空间）
+  # 1280x720 = 720P（更小体积）
+  # -2:1080 = 保持比例，高度 1080
+  resolution: 1920x1080
+  
+  # 压缩后删除源文件
+  delete_source: true
+
+# ========== 上传配置 ==========
+upload:
+  # 是否启用上传
+  enabled: true
+  
+  # WebDAV 服务器地址
+  # 支持 OpenList/Alist 等 WebDAV 服务
+  webdav_url: http://192.168.31.66:5246/dav/baidu/视频归档
+  
+  # WebDAV 用户名
+  webdav_user: admin
+  
+  # WebDAV 密码
+  webdav_pass: your_password_here
+  
+  # 上传限速（防止占用全部带宽）
+  # 1M = 1MB/s, 500k = 500KB/s
+  rate_limit: 1M
+  
+  # 上传后删除本地文件
+  delete_after_upload: false
+  
+  # 启用断点续传（v1.2.2+）
+  resume: true
+  
+  # 上传失败最大重试次数
+  max_retries: 3
+  
+  # 重试间隔（秒）
+  retry_delay: 30
+
+# ========== 调度配置 ==========
+schedule:
+  # 轮询间隔（秒）
+  # 3600 = 1小时检查一次
+  interval: 3600
+  
+  # 只运行一次（调试用）
+  run_once: false
+
+# ========== 日志配置 ==========
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+  
+  # 日志格式
+  format: '%(asctime)s - %(levelname)s - %(message)s'
+  
+  # 日志保留天数
+  retain_days: 30

@@ -1,3 +1,8 @@
+# 小米摄像头视频流水线 v1.2.2
+# 断点续传 + 进度监控 + 监控场景优化
+
+version: "3.8"
+
 services:
   pipeline:
     build: .
@@ -5,42 +10,64 @@ services:
     restart: unless-stopped
     
     volumes:
-      # 视频源目录（小米摄像头原始视频片段）- 只读
-      # 请修改为您的实际路径
-      - /path/to/xiaomi/video:/video:ro
-      # 合并中间文件目录（MOV 格式）
+      # ========== 视频处理目录 ==========
+      # 视频源目录（小米摄像头原始视频）- 修改为你的实际路径
+      # 改为 rw 支持删除源文件
+      - /path/to/xiaomi/video:/video
+      
+      # 合并中间文件（MOV 格式）
       - ./temp:/input
-      # 压缩后文件目录（MKV 格式）
+      
+      # 压缩后文件（MKV 格式）
       - ./output:/output
+      
       # 日志目录
-      - ./logs:/logs
-      # 配置文件（只读）
+      - ./log:/logs
+      
+      # ========== 配置和数据 ==========
+      # 配置文件（只读挂载）
       - ./config.yaml:/app/config.yaml:ro
-      # 数据目录（包含 SQLite 数据库）
-      # 注意：使用目录挂载而非文件挂载，避免权限问题
+      
+      # 状态数据库目录（v1.2.2 断点续传需要）
+      # 使用目录挂载避免权限问题
       - ./data:/app/data
     
     environment:
       - CONFIG_FILE=/app/config.yaml
       - STATE_DB=/app/data/pipeline.db
       - LOG_DIR=/logs
-      # 编码设置（避免中文乱码）
-      - LANG=en_US.UTF-8
-      - LC_ALL=en_US.UTF-8
+      
+      # 时区设置（北京时间）
+      - TZ=Asia/Shanghai
+      
+      # UTF-8 编码设置
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
       - PYTHONIOENCODING=utf-8
-      # 压缩配置（环境变量优先级最高，会覆盖 config.yaml 中的设置）
-      # 建议在此设置主要参数，便于统一管理
-      # resolution: original(保持原分辨率), 1920x1080, -2:1080(等高), 1920:-2(等宽)
+      
+      # ========== 压缩参数（环境变量优先级最高）==========
+      # 分辨率: original(保持原分辨率), 1920x1080(推荐), 1280x720
+      # 监控场景建议 1920x1080 或 1280x720，2K 太奢侈
       - COMPRESS_RESOLUTION=1920x1080
+      
+      # CRF: 0-51，越小质量越好
+      # 监控推荐 35-40（平衡质量和体积）
       - COMPRESS_CRF=35
+      
+      # 线程数
       - COMPRESS_THREADS=4
+      
+      # 预设: ultrafast, superfast, veryfast, fast, medium, slow
+      # 监控推荐 veryfast（快速处理，多耗电少）
       - COMPRESS_PRESET=medium
     
     deploy:
       resources:
         limits:
-          # CPU 限制（可根据实际情况调整）
-          cpus: "4"
+          # CPU 限制
+          # 根据宿主机配置调整
+          # 4核=压缩慢但省电, 8核=压缩快但耗电
+          cpus: "8"
           memory: 2G
     
     logging:

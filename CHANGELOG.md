@@ -7,53 +7,50 @@
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-03-13
+
+### 新增
+- **断点续传支持** (`upload.resume`): WebDAV 上传中断后自动恢复，无需从头开始
+- **上传进度监控**: 实时显示上传速度、已传大小、剩余大小
+- **智能重试机制**: 上传失败自动重试，最多 3 次（可配置）
+- **上传进度数据库**: SQLite 记录上传进度，重启容器后自动续传
+- **文件大小格式化**: 自动显示 B/KB/MB/GB，更易读
+
+### 修复
+- **时区问题**: 添加 `TZ=Asia/Shanghai` 环境变量，确保日志和上传目录使用北京时间（UTC+8），而非 UTC
+
+### 优化
+- **监控场景压缩参数推荐**: 默认 1920x1080 + CRF35 + medium preset（2K 太奢侈！）
+- **上传速度报告**: 完成后显示平均上传速度
+- **配置模板完善**: config.yaml.example 添加详细注释
+- **docker-compose.yml 优化**: 添加更多使用说明和参数解释、时区设置
+
+### 技术改进
+- 新增 `upload_progress` 数据表存储断点续传状态
+- 使用 `curl -C -` 实现断点续传
+- 改进 curl 输出解析，提取 HTTP 状态码和上传速度
+- 上传前检查远程文件大小，智能计算续传位置
+
+### 配置变更
+```yaml
+upload:
+  resume: true          # 新增：断点续传
+  max_retries: 3        # 新增：最大重试次数
+  retry_delay: 30       # 新增：重试间隔(秒)
+```
+
 ## [1.2.1] - 2026-03-13
 
 ### 新增
-- 本地文件自动清理功能 (`cleanup_local_files()`)
-- 独立清理脚本 `cleanup.py`，支持预览模式和自定义保留天数
-- 手动清理工具，支持 `--dry-run`、`--days`、`--force` 参数
-- 磁盘空间监控，低于阈值时自动强制清理
-- 项目标准化文档 `docs/project-standard.md`
-- WebDAV 配置指南 `docs/webdav-setup-guide.md`
-- OpenList Docker + tc 限速配置示例和脚本
+- UTF-8 标准化（避免 GBK 乱码）
+- Dockerfile 优化（阿里云镜像、en_US.UTF-8）
+- docker-compose.yml 优化（移除 version 行、目录挂载）
+- cleanup.py 清理脚本
 
 ### 变更
-- **默认输出分辨率**: `original` -> `1920x1080` (1080p)
-- **默认 CRF**: `32` -> `35`（更高压缩率，适合监控录像）
-- **默认线程数**: `8` -> `4`
-- **docker-compose.yml 路径**: 移除个人路径 `/vol2/...`，改为通用路径 `/path/to/...`
-- **配置优先级**: 环境变量 > config.yaml > 代码默认值
-- **WebDAV 配置**: 改为占位符形式，用户按需配置
-
-### UTF-8 标准化
-- 统一 Windows/Linux 编码配置
-- Windows: 强制 `zh_CN.UTF-8` + `io.TextIOWrapper`
-- Linux/Docker: 使用 `en_US.UTF-8`
-- 添加 `PYTHONIOENCODING=utf-8` 环境变量
-- 所有 Python 文件添加 `# -*- coding: utf-8 -*-` 头
-
-### 代码质量
-- 清理重复导入（`urllib.parse` 导入 3 次）
-- 添加全面的错误处理和异常捕获
-- 改进数据库操作错误处理（try-except）
-- 改进文件操作安全性（临时文件清理）
-- 改进视频目录检测（添加 `isdigit()` 验证）
-- 改进文件扩展名检测（大小写不敏感）
-- 改进配置加载（带类型转换的环境变量映射）
-- 改进日志清理（更安全的旧日志删除）
-- 改进 WebDAV 上传（添加超时和异常处理）
-
-### 文档
-- 添加配置优先级说明
-- 添加完整的 WebDAV 配置指南
-- 添加 OpenList Docker + tc 限速配置
-- 添加项目标准化文档
-- 更新所有文档使用通用路径替代个人路径
-
-### 移除
-- 移除捆绑的 `openlist-docker/` 目录
-- WebDAV 服务端改为用户按需自行部署
+- 默认分辨率改为 1920x1080（监控场景不需要 2K）
+- 默认 CRF 35（更高压缩率）
+- 默认线程 4（降低 CPU 占用）
 
 ## [1.2.0] - 2026-03-13
 
@@ -61,22 +58,24 @@
 - WebDAV 上传自动按日期归档（年/月/日目录结构）
 - 逐级创建 WebDAV 目录支持（MKCOL 多级目录）
 - 新增 temp 挂载目录用于存储合并中间文件
-- WebDAV 上传支持（支持任意 WebDAV 服务）
+- OpenList WebDAV 支持（对接百度盘）
 
 ### 变更
-- 上传路径格式：`/归档/2026/03/13/文件名.mkv`
+- WebDAV 配置更新：切换到 OpenList (your-openlist-ip:5246) -> 百度盘
+- 上传路径格式：/视频归档/2026/03/13/filename.mkv
 - docker-compose.yml 添加 temp 目录挂载
 - 上传限速配置：1MB/s (8Mbps)
 
 ### 配置更新
 
+
 ### 目录映射更新
 | 宿主机路径 | 容器路径 | 说明 |
 |-----------|---------|------|
-| /path/to/xiaomi/video | /video | 小米原始视频（只读） |
-| ./temp | /input | 合并中间文件（MOV） |
-| ./output | /output | 压缩后文件（MKV） |
-| ./logs | /logs | 日志文件 |
+| /path/to/your/video/input | /video | 小米原始视频（只读） |
+| /path/to/your/video/temp | /input | 合并中间文件（MOV） |
+| /path/to/your/video/output | /output | 压缩后文件（MKV） |
+| /path/to/your/video/log | /logs | 日志文件 |
 
 ## [1.1.0] - 2026-03-12
 
