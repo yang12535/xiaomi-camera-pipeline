@@ -32,7 +32,7 @@ def upload_videos(config):
     mkv_files = []
     for root, _, files in os.walk(output_dir):
         for f in files:
-            if f.endswith('.mkv'):
+            if f.endswith('.mkv') and 'test' not in f.lower():
                 mkv_files.append(os.path.join(root, f))
     
     count = 0
