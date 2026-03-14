@@ -1,22 +1,22 @@
-# WebDAV Configuration Guide
+# WebDAV 配置指南
 
-This document describes how to configure WebDAV server to work with Pipeline.
+本文档介绍如何配置 WebDAV 服务器以配合 Pipeline 使用。
 
-## Supported WebDAV Services
+## 支持的 WebDAV 服务
 
-Pipeline supports any standard WebDAV service, including but not limited to:
+Pipeline 支持任何标准 WebDAV 服务，包括但不限于：
 
 - OpenList
 - AList
-- Nginx WebDAV module
+- Nginx WebDAV 模块
 - Apache WebDAV
-- Other WebDAV protocol compatible services
+- 其他兼容 WebDAV 协议的服务
 
 ---
 
-## Pipeline Configuration
+## Pipeline 配置
 
-Edit `config.yaml`:
+编辑 `config.yaml`：
 
 ```yaml
 upload:
@@ -25,171 +25,118 @@ upload:
   webdav_url: "http://your-webdav-server:port/dav/storage/path"
   webdav_user: "your_username"
   webdav_pass: "your_password"
-  rate_limit: "100M"        # Upload speed limit (optional for LAN)
+  rate_limit: "100M"        # 上传限速（局域网可不限制）
   delete_after_upload: false
 ```
 
-### Configuration Parameters
+### 配置参数
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `webdav_url` | WebDAV server address | `http://your-openlist-ip:5246/dav/baidu/archive` |
-| `webdav_user` | Username | `admin` |
-| `webdav_pass` | Password | `your_password` |
-| `rate_limit` | Upload speed limit | `1M` (1MB/s), `100M` (no limit), `0` (no limit) |
-| `delete_after_upload` | Delete local file after upload | `true`/`false` |
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `webdav_url` | WebDAV 服务器地址 | `http://your-openlist-ip:5246/dav/baidu/archive` |
+| `webdav_user` | 用户名 | `admin` |
+| `webdav_pass` | 密码 | `your_password` |
+| `rate_limit` | 上传速度限制 | `1M` (1MB/s), `100M` (不限速), `0` (不限速) |
+| `delete_after_upload` | 上传后删除本地文件 | `true`/`false` |
 
 ---
 
-## Upload Path Format
+## 上传路径格式
 
-Pipeline automatically creates directory structure by date:
+Pipeline 自动按日期创建目录结构：
 
 ```
 /dav/storage/path/2026/03/13/filename.mkv
 ```
 
-Format: `base URL` + `year/month/day` + `filename`
+格式: `基础 URL` + `年/月/日` + `文件名`
 
 ---
 
-## Rate Limiting Guide
+## 限速指南
 
-If you need to limit upload speed, it is recommended to configure at the WebDAV server side rather than the Pipeline side.
+如需限制上传速度，建议在 WebDAV 服务器端配置，而非 Pipeline 端。
 
-### Option 1: Server-side Rate Limiting (Recommended)
+### 方案一：服务器端限速（推荐）
 
-Configure upload speed limit at the WebDAV server, Pipeline transfers at full speed on LAN.
+在 WebDAV 服务器配置上传限速，Pipeline 在局域网内全速传输。
 
-Advantages:
-- Fast LAN transfer speed (Pipeline -> WebDAV server)
-- Controllable outbound bandwidth (WebDAV server -> Cloud storage)
-- Does not affect Pipeline processing efficiency
+优点：
+- 局域网传输速度快（Pipeline -> WebDAV 服务器）
+- 外网带宽可控（WebDAV 服务器 -> 云存储）
+- 不影响 Pipeline 处理效率
 
-### Option 2: OpenList Docker + tc Rate Limiting
+### 方案二：OpenList Docker + nsenter + tc 限速（推荐）
 
-Below is an example of rate limiting using OpenList + Docker + tc:
+推荐使用本项目提供的限速脚本对 OpenList 容器进行出口限速。这是最简单可靠的方案。
 
-#### 1. OpenList Docker Compose Configuration
+#### 快速配置
+
+```bash
+# 1. 启动 OpenList 容器
+docker run -d \
+  --name openlist-test \
+  -p 15245:5244 \
+  -v ./data:/opt/openlist/data \
+  -e TZ=Asia/Shanghai \
+  openlistteam/openlist:latest
+
+# 2. 应用限速（10Mbps）
+./scripts/limit-container-bandwidth.sh openlist-test 10mbit setup
+```
+
+#### 详细配置
+
+详见 [bandwidth-limit-guide.md](./bandwidth-limit-guide.md)，包含：
+- 完整的 Docker Compose 配置
+- 百度网盘存储设置
+- Pipeline 配置对接
+- 自动化限速方案
+- 故障排查指南
+
+#### 旧方案（不推荐）
+
+以下方案已过时，仅供参考：
+
+<details>
+<summary>点击查看旧方案（容器内 tc + cap_add NET_ADMIN）</summary>
 
 ```yaml
-# openlist-docker-compose.yml
+# 旧方案 - 需要 cap_add NET_ADMIN，且容器重启后失效
 services:
   openlist:
     image: openlistteam/openlist:latest
-    container_name: openlist-limited
-    restart: unless-stopped
-    user: "0:0"  # root user to execute tc commands
-    ports:
-      - "5246:5244"  # host 5246 maps to container 5244
-    volumes:
-      - ./data:/opt/openlist/data
-      - ./temp:/opt/openlist/data/temp
-    environment:
-      - TZ=Asia/Shanghai
-      - UMASK=022
     cap_add:
-      - NET_ADMIN  # Allow network management permissions
+      - NET_ADMIN
     command: >
       sh -c "
-        tc qdisc add dev eth0 root tbf rate 1mbit burst 32kbit latency 400ms 2>/dev/null || true &&
+        tc qdisc add dev eth0 root tbf rate 1mbit burst 32kbit latency 400ms || true &&
         /opt/openlist/openlist server --data /opt/openlist/data
       "
-    networks:
-      - openlist-net
-
-networks:
-  openlist-net:
-    driver: bridge
 ```
 
-#### 2. tc Rate Limiting Parameters
+**缺点**：
+- 需要特权模式
+- 容器重启后限速失效
+- 配置复杂
 
-| Parameter | Description | Suggested Value |
-|-----------|-------------|-----------------|
-| `rate` | Rate limit | `1mbit` = 1 Mbps ~ 125 KB/s |
-| `burst` | Burst bucket size | `32kbit` |
-| `latency` | Maximum latency | `400ms` |
-
-#### 3. Dynamic Rate Limiting Script
-
-After container restart, the veth interface changes. Use the following script to dynamically identify and apply rate limiting:
-
-```bash
-#!/bin/bash
-# apply-limit.sh - Apply tc rate limiting
-
-CONTAINER_NAME="openlist-limited"
-RATE="1mbit"
-
-# Get container PID
-container_pid=$(docker inspect --format='{{.State.Pid}}' $CONTAINER_NAME 2>/dev/null)
-if [ -z "$container_pid" ]; then
-    echo "Container not running"
-    exit 1
-fi
-
-# Get eth0 interface index inside container
-eth_index=$(nsenter -t $container_pid -n ip link show eth0 | grep -o 'eth0@if[0-9]*' | cut -d'@' -f2 | tr -d 'if')
-if [ -z "$eth_index" ]; then
-    echo "Cannot get interface index"
-    exit 1
-fi
-
-# Find corresponding veth interface on host
-host_veth=$(ip link show | grep -E "^${eth_index}:" | awk -F': ' '{print $2}' | awk '{print $1}')
-if [ -z "$host_veth" ]; then
-    echo "Cannot find host veth interface"
-    exit 1
-fi
-
-# Delete old rule (if exists)
-sudo tc qdisc del dev $host_veth root 2>/dev/null
-
-# Add new rule
-sudo tc qdisc add dev $host_veth root tbf rate $RATE burst 32kbit latency 400ms
-
-if [ $? -eq 0 ]; then
-    echo "Successfully set $host_veth rate limit to $RATE"
-    sudo tc qdisc show dev $host_veth
-else
-    echo "Failed to set rate limit"
-    exit 1
-fi
-```
-
-Usage:
-```bash
-chmod +x apply-limit.sh
-sudo ./apply-limit.sh
-```
-
-#### 4. Persistent Rate Limiting (Recommended)
-
-Add to crontab to check and apply rate limiting every minute:
-
-```bash
-# crontab -e
-* * * * * /path/to/apply-limit.sh >> /var/log/tc-limit.log 2>&1
-```
-
-Or use systemd timer for more reliability.
+</details>
 
 ---
 
-## Configuration Example
+## 配置示例
 
-### Complete Deployment Example
+### 完整部署示例
 
 ```
-Server A (Pipeline)
-  └── Video processing (merge->compress->upload) -> WebDAV -> Server B
+服务器 A (Pipeline)
+  └── 视频处理（合并->压缩->上传）-> WebDAV -> 服务器 B
 
-Server B (WebDAV + Rate Limiting)
-  └── OpenList Docker (tc rate limit 1MB/s) -> Baidu Netdisk
+服务器 B (WebDAV + 限速)
+  └── OpenList Docker (tc 限速 1MB/s) -> 百度网盘
 ```
 
-#### Server A - Pipeline Configuration
+#### 服务器 A - Pipeline 配置
 
 ```yaml
 # config.yaml
@@ -198,41 +145,42 @@ upload:
   webdav_url: "http://your-openlist-ip:5246/dav/baidu/archive"
   webdav_user: "admin"
   webdav_pass: "your_password"
-  rate_limit: "100M"  # No limit on LAN
+  rate_limit: "100M"  # 局域网不限速
 ```
 
-#### Server B - OpenList + Rate Limiting
+#### 服务器 B - OpenList + 限速
 
-Use the docker-compose.yml and apply-limit.sh above.
-
----
-
-## Troubleshooting
-
-### Chinese Filename Garbled
-
-Ensure:
-1. WebDAV server supports UTF-8
-2. Pipeline is configured with UTF-8 (default configuration)
-
-### Upload Failed
-
-Check:
-1. WebDAV service accessibility: `curl -v http://your-server:port/dav/`
-2. Authentication information is correct
-3. Directory exists (Pipeline will create automatically)
-
-### Rate Limiting Not Working
-
-Check:
-1. Container has `NET_ADMIN` permission
-2. tc rules are correctly applied: `tc qdisc show`
-3. Rate limiting script executed successfully
+使用上面的 docker-compose.yml 和 apply-limit.sh。
 
 ---
 
-## References
+## 故障排查
 
-- OpenList Documentation: https://doc.oplist.org
-- tc Command Manual: `man tc`
-- WebDAV Protocol: RFC 4918
+### 中文文件名乱码
+
+确保：
+1. WebDAV 服务器支持 UTF-8
+2. Pipeline 配置了 UTF-8（默认配置）
+
+### 上传失败
+
+检查：
+1. WebDAV 服务可访问：`curl -v http://your-server:port/dav/`
+2. 认证信息正确
+3. 目录存在（Pipeline 会自动创建）
+
+### 限速不生效
+
+检查：
+1. 容器具有 `NET_ADMIN` 权限
+2. tc 规则正确应用：`tc qdisc show`
+3. 限速脚本执行成功
+
+---
+
+## 参考
+
+- OpenList 文档：https://doc.oplist.org
+- tc 命令手册：`man tc`
+- WebDAV 协议：RFC 4918
+- 项目地址：https://github.com/yang12535/xiaomi-camera-pipeline

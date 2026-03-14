@@ -1,117 +1,119 @@
-# Project Standard Documentation
+# 项目标准文档
 
-## Project Information
+## 项目信息
 
-| Item | Content |
-|------|---------|
-| Name | xiaomi-camera-pipeline |
-| Version | v1.2.1 |
-| License | AGPL-3.0 |
-| Python Version | 3.8+ |
+| 项目 | 内容 |
+|------|------|
+| 名称 | xiaomi-camera-pipeline |
+| 版本 | v1.2.4 |
+| 许可证 | AGPL-3.0 |
+| Python 版本 | 3.8+ |
+| GitHub | https://github.com/yang12535/xiaomi-camera-pipeline |
 
-## Encoding Standard
+## 编码标准
 
-### UTF-8 Standardization
+### UTF-8 标准化
 
-Project uses unified UTF-8 encoding to ensure Windows/Linux compatibility:
+项目使用统一的 UTF-8 编码，确保 Windows/Linux 兼容性：
 
-#### Python Files
+#### Python 文件
 ```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 ```
 
-#### Environment Configuration
-- **Windows**: Force `zh_CN.UTF-8`
-- **Linux/Docker**: Use `en_US.UTF-8`
+#### 环境配置
+- **Windows**: 强制使用 `zh_CN.UTF-8`
+- **Linux/Docker**: 使用 `en_US.UTF-8`
 - **Python**: `PYTHONIOENCODING=utf-8`
 
-#### Docker Configuration
+#### Docker 配置
 ```dockerfile
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     PYTHONIOENCODING=utf-8
 ```
 
-### Code Style
+### 代码风格
 
-- Follow PEP 8 specification
-- Functions and variables use snake_case
-- Constants use UPPER_CASE
-- Classes use CamelCase
+- 遵循 PEP 8 规范
+- 函数和变量使用 snake_case
+- 常量使用 UPPER_CASE
+- 类使用 CamelCase
 
-## Directory Structure
+## 目录结构
 
 ```
 pipeline/
-├── pipeline.py          # Main program entry
-├── cleanup.py           # Local cleanup tool
-├── config.yaml          # Configuration file template
-├── docker-compose.yml   # Docker Compose configuration
-├── Dockerfile           # Docker build file
-├── deploy.sh            # Deployment script
-├── requirements.txt     # Python dependencies
-├── docs/                # Documentation directory
+├── pipeline.py          # 主程序入口
+├── cleanup.py           # 本地清理工具
+├── config.yaml          # 配置文件模板
+├── docker-compose.yml   # Docker Compose 配置
+├── Dockerfile           # Docker 构建文件
+├── deploy.sh            # 部署脚本
+├── requirements.txt     # Python 依赖
+├── docs/                # 文档目录
 │   ├── webdav-setup-guide.md
-│   └── project-standard.md
-├── data/                # Data directory (SQLite database)
-├── temp/                # Temp files (merge intermediate files)
-├── output/              # Output directory (compressed MKV)
-└── logs/                # Log directory
+│   ├── project-standard.md
+│   └── bandwidth-limit-guide.md
+├── data/                # 数据目录 (SQLite 数据库)
+├── temp/                # 临时文件 (合并中间文件)
+├── output/              # 输出目录 (压缩后的 MKV)
+└── logs/                # 日志目录
 ```
 
-## Configuration Standard
+## 配置标准
 
-### Configuration Priority (High to Low)
+### 配置优先级（从高到低）
 
-1. **docker-compose.yml environment variables** (Highest priority)
+1. **docker-compose.yml 环境变量**（最高优先级）
    ```yaml
    environment:
      - COMPRESS_RESOLUTION=1920x1080
      - COMPRESS_CRF=35
    ```
 
-2. **config.yaml configuration file**
+2. **config.yaml 配置文件**
    ```yaml
    compress:
      resolution: "1920x1080"
      crf: 35
    ```
 
-3. **Code defaults** (Lowest priority)
+3. **代码默认值**（最低优先级）
 
-### Default Configuration Standard
+### 默认配置标准
 
-| Parameter | Default Value | Description |
-|-----------|---------------|-------------|
-| Resolution | 1920x1080 | 1080p output |
-| CRF | 35 | High compression, suitable for surveillance |
-| Threads | 4 | CPU thread count |
-| Preset | medium | Encoding speed/quality balance |
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| 分辨率 | 1920x1080 | 1080P 输出 |
+| CRF | 35 | 高压缩率，适合监控场景 |
+| 线程数 | 4 | CPU 线程数 |
+| 预设 | medium | 编码速度/质量平衡 |
 
-## Docker Standard
+## Docker 标准
 
-### Image Build
+### 镜像构建
 
 ```dockerfile
 FROM jrottenberg/ffmpeg:6.1-ubuntu2204
 ```
 
-### Port Mapping
+### 端口映射
 
-- No external ports exposed (Pipeline runs internally)
+- 不暴露外部端口（Pipeline 在内部运行）
 
-### Volume Mounts
+### 卷挂载
 
-| Host | Container | Description |
-|------|-----------|-------------|
-| `/path/to/video` | `/video` | Video source (read-only) |
-| `./temp` | `/input` | Merge intermediate files |
-| `./output` | `/output` | Compressed files |
-| `./logs` | `/logs` | Log files |
-| `./data` | `/app/data` | SQLite database |
+| 宿主机 | 容器 | 说明 |
+|--------|------|------|
+| `/path/to/video` | `/video` | 视频源（只读） |
+| `./temp` | `/input` | 合并中间文件 |
+| `./output` | `/output` | 压缩后文件 |
+| `./logs` | `/logs` | 日志文件 |
+| `./data` | `/app/data` | SQLite 数据库 |
 
-### Resource Limits
+### 资源限制
 
 ```yaml
 deploy:
@@ -121,141 +123,142 @@ deploy:
       memory: 2G
 ```
 
-## Log Standard
+## 日志标准
 
-### Log Format
+### 日志格式
 ```
 %(asctime)s - %(levelname)s - %(message)s
 ```
 
-### Log Levels
-- DEBUG: Debug information
-- INFO: General information (default)
-- WARNING: Warnings
-- ERROR: Errors
+### 日志级别
+- DEBUG: 调试信息
+- INFO: 一般信息（默认）
+- WARNING: 警告
+- ERROR: 错误
 
-### Log Files
-- Location: `/logs/pipeline.log`
-- Retention: 30 days
+### 日志文件
+- 位置: `/logs/pipeline.log`
+- 保留: 30 天
 
-## Database Standard
+## 数据库标准
 
 ### SQLite
-- File: `/app/data/pipeline.db`
-- Table: `processed`
-- Fields: `path`, `stage`, `timestamp`
+- 文件: `/app/data/pipeline.db`
+- 表: `processed`
+- 字段: `path`, `stage`, `timestamp`
 
-### Status Definitions
-- `merge`: Merged
-- `compress`: Compressed
-- `upload`: Uploaded
+### 状态定义
+- `merge`: 已合并
+- `compress`: 已压缩
+- `upload`: 已上传
 
-## Version Management
+## 版本管理
 
-### Version Number Rules
-Follow [SemVer](https://semver.org/lang/zh-CN/):
+### 版本号规则
+遵循 [SemVer](https://semver.org/lang/zh-CN/)：
 
 ```
-MAJOR.MINOR.PATCH
+主版本号.次版本号.修订号
 ```
 
-- **MAJOR**: Incompatible API changes
-- **MINOR**: Backward-compatible functionality additions
-- **PATCH**: Backward-compatible bug fixes
+- **主版本号**：不兼容的 API 修改
+- **次版本号**：向下兼容的功能新增
+- **修订号**：向下兼容的问题修复
 
-### Version Record
-See [CHANGELOG.md](../CHANGELOG.md)
+### 版本记录
+详见 [CHANGELOG.md](../CHANGELOG.md)
 
-## Submit Standard
+## 提交标准
 
-### Commit Message Format
+### 提交信息格式
 ```
-<type>(<scope>): <subject>
+<类型>(<范围>): <主题>
 
-<body>
+<正文>
 
-<footer>
+<脚注>
 ```
 
-### Type Types
-- feat: New feature
-- fix: Bug fix
-- docs: Documentation
-- style: Format
-- refactor: Refactoring
-- test: Test
-- chore: Build/tool
+### 类型说明
+- feat: 新功能
+- fix: 修复
+- docs: 文档
+- style: 格式
+- refactor: 重构
+- test: 测试
+- chore: 构建/工具
 
-### Example
+### 示例
 ```
-feat(upload): add WebDAV date-based directory structure
+feat(upload): 添加 WebDAV 按日期归档目录结构
 
-- Auto create year/month/day directories
-- Support recursive MKCOL for nested paths
+- 自动创建年/月/日目录
+- 支持嵌套路径的递归 MKCOL
 
 Closes #123
 ```
 
-## Document Standard
+## 文档标准
 
-### File Naming
-- Use lowercase letters
-- Use hyphens between words
-- English preferred
+### 文件命名
+- 使用小写字母
+- 使用连字符分隔单词
+- 优先使用英文
 
-### Examples
+### 示例
 - `webdav-setup-guide.md`
 - `project-standard.md`
 
-## Dependency Management
+## 依赖管理
 
-### Python Dependencies
+### Python 依赖
 ```
 PyYAML>=5.4.1
 ```
 
-### System Dependencies
+### 系统依赖
 - FFmpeg 6.1+
 - Python 3.8+
 - SQLite 3
 
-## Security Standard
+## 安全标准
 
-### Sensitive Information
-- Passwords and other sensitive information passed through environment variables
-- Configuration files not uploaded to version control
-- Database files backed up regularly
+### 敏感信息
+- 密码等敏感信息通过环境变量传递
+- 配置文件不上传到版本控制
+- 数据库文件定期备份
 
-### Permission Control
-- Video source directory mounted read-only
-- Non-root user in container (if tc rate limiting not needed)
+### 权限控制
+- 视频源目录只读挂载
+- 容器内使用非 root 用户（如不需要 tc 限速）
 
-## Test Standard
+## 测试标准
 
-### Test Types
-- Unit tests (to be added)
-- Integration tests (to be added)
-- Manual tests
+### 测试类型
+- 单元测试（待添加）
+- 集成测试（待添加）
+- 手动测试
 
-### Test Checklist
-- [ ] Merge function works
-- [ ] Compression function works
-- [ ] Upload function works
-- [ ] Chinese filenames work
-- [ ] Log output works
-- [ ] Database records work
+### 测试清单
+- [ ] 合并功能正常
+- [ ] 压缩功能正常
+- [ ] 上传功能正常
+- [ ] 中文文件名正常
+- [ ] 日志输出正常
+- [ ] 数据库记录正常
 
-## Release Process
+## 发布流程
 
-1. Update version number (code, documentation)
-2. Update CHANGELOG.md
-3. Tag: `git tag v1.2.1`
-4. Build Docker image
-5. Push image
-6. Create Release
+1. 更新版本号（代码、文档）
+2. 更新 CHANGELOG.md
+3. 打标签: `git tag v1.2.4`
+4. 构建 Docker 镜像
+5. 推送镜像
+6. 创建 Release
 
-## References
+## 参考
 
 - [PEP 8](https://pep8.org/)
 - [SemVer](https://semver.org/lang/zh-CN/)
 - [Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/)
+- [GitHub 项目](https://github.com/yang12535/xiaomi-camera-pipeline)

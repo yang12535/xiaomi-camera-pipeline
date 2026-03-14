@@ -2,11 +2,11 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v1.2.2-orange.svg)](VERSION)
+[![Version](https://img.shields.io/badge/Version-v1.2.4-orange.svg)](VERSION)
 
-> 自动化视频处理流水线：合并 → 压缩 → ~~上传~~
+> 自动化视频处理流水线：合并 → 压缩 → 上传
 
-⚠️ **上传功能暂不可用** - Docker 网络限速调试中，建议禁用上传或等待修复
+✅ **v1.2.4 已解决上传限速问题** - 使用 `scripts/limit-container-bandwidth.sh` 对 OpenList 容器进行出口限速
 
 ## 功能特性
 
@@ -143,13 +143,19 @@ v1.2.2+ 支持断点续传：
 
 ### Q: 上传速度慢？
 
-检查 OpenList/Alist 的网络限速：
+使用限速脚本对 OpenList 容器进行出口限速：
 ```bash
-# 在宿主机执行
-tc qdisc show
-# 如果有限速，调整为 10Mbit
-tc qdisc change dev vethxxx root tbf rate 10mbit burst 128kbit latency 400ms
+# 限速 10Mbps（推荐）
+./scripts/limit-container-bandwidth.sh openlist-test 10mbit setup
+
+# 查看限速状态
+./scripts/limit-container-bandwidth.sh openlist-test status
+
+# 清除限速
+./scripts/limit-container-bandwidth.sh openlist-test clear
 ```
+
+详见 [docs/bandwidth-limit-guide.md](docs/bandwidth-limit-guide.md)
 
 ### Q: 时区不对？
 

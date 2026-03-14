@@ -85,7 +85,7 @@ docker-compose up -d
 ### 添加百度网盘存储
 
 1. 访问 `http://your-openlist-ip:5246/@manage`
-2. 登录 admin 账号
+2. 登录 admin 账号（默认密码查看容器日志）
 3. 进入"存储" → "添加"
 4. 选择"百度网盘"
 5. 填写 refresh_token（从百度获取）
@@ -182,7 +182,7 @@ docker stats xiaomi-camera-pipeline
 
 ```bash
 # 检查 WebDAV 连接
-curl -X PROPFIND -u admin:password http://your-openlist-ip:5246/dav/baidu/
+curl -X PROPFIND -u admin:your_password http://your-openlist-ip:5246/dav/baidu/
 
 # 检查限速
 tc qdisc show
@@ -252,6 +252,6 @@ docker-compose up -d
 ## 安全建议
 
 1. **修改默认密码**：OpenList 和 pipeline 的默认密码
-2. **限制网络访问**：防火墙限制 5246 端口访问
+2. **限制网络访问**：防火墙限制 5246/5333 端口仅内网访问
 3. **定期备份**：重要视频文件多重备份
 4. **监控磁盘**：设置磁盘使用率告警

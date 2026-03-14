@@ -6,7 +6,9 @@
 模块化的视频处理流水线：
 合并 → 压缩 → 上传
 
-v1.2.2 - 断点续传 + 进度监控 + 监控场景优化
+GitHub: https://github.com/yang12535/xiaomi-camera-pipeline
+
+v1.2.4 - 断点续传 + 进度监控 + 容器出口限速
 """
 
 import os
@@ -50,7 +52,8 @@ def main():
     log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
-    logging.info("小米摄像头视频流水线 v1.2.2")
+    logging.info("小米摄像头视频流水线 v1.2.4")
+    logging.info("GitHub: https://github.com/yang12535/xiaomi-camera-pipeline")
     logging.info("="*50)
     
     init_db()

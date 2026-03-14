@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-03-14
+
+### 新增
+- **Docker 容器出口限速方案**: 新增 `scripts/limit-container-bandwidth.sh` 脚本，使用 nsenter + tc HTB 对 OpenList 等容器进行出向带宽限速
+- **限速使用文档**: 新增 `docs/bandwidth-limit-guide.md`，详细介绍限速原理、使用方法和自动化配置
+
+### 技术改进
+- 使用 `nsenter` 进入容器 network namespace，在 eth0 上设置 HTB 队列规则
+- 支持 `setup`/`clear`/`status`/`restart` 四种操作模式
+- 提供 crontab 和 systemd 两种自动化方案
+
+### 文档更新
+- 汉化 `docs/project-standard.md` 和 `docs/webdav-setup-guide.md`
+- 更新版本号至 v1.2.4
+
+## [1.2.3] - 2026-03-14
+
+### 修复
+- 修复 curl 输出解析错误，合并 stdout + stderr 正确获取 HTTP 状态码和上传速度
+
 ## [1.2.2] - 2026-03-13
 
 ### 新增
