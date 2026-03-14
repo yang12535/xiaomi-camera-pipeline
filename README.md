@@ -1,5 +1,7 @@
 # 小米摄像头视频流水线
 
+## 1.2.4流程已全跑通，遇到问题请先阅读文档，如果没有请issues/PR
+
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-v1.2.4-orange.svg)](VERSION)
