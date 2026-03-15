@@ -64,8 +64,8 @@ merge:
 compress:
   input_dir: /path/to/your/video/temp
   output_dir: /path/to/your/video/output
-  crf: 35              # 压缩质量，监控场景建议 35-40
-  preset: medium       # veryfast(快) / medium(平衡) / slow(小文件)
+  crf: 32              # 压缩质量: 28(高质量) / 32(平衡) / 35(高压缩)
+  preset: fast          # faster(快) / fast(平衡) / medium(慢但省空间)
   threads: 4           # 编码线程数
   resolution: 1920x1080  # 监控建议 1080P，2K 太奢侈！
   delete_source: true
@@ -112,9 +112,12 @@ docker-compose logs -f
 
 | 场景 | resolution | crf | preset | 说明 |
 |------|-----------|-----|--------|------|
-| 快速处理 | 1920x1080 | 35 | veryfast | 推荐，CPU 占用低 |
-| 平衡质量 | 1920x1080 | 35 | medium | 当前配置 |
-| 极致压缩 | 1280x720 | 40 | slow | 文件最小 |
+| 使用场景 | resolution | crf | preset | 说明 |
+|----------|-----------|-----|--------|------|
+| **平衡模式（默认）** | original | 32 | fast | 推荐，质量与体积平衡 |
+| 高质量存档 | 1920x1080 | 28 | slow | 重要视频长期保存 |
+| 高压缩率 | 1280x720 | 35 | medium | 存储空间有限 |
+| 极速处理 | original | 32 | faster | 快速处理大量视频 |
 
 > 💡 **监控场景 1080P 足够**，2K 太奢侈！CRF35 压缩率约 60-70%。
 
@@ -125,9 +128,9 @@ docker-compose logs -f
 ```yaml
 environment:
   - COMPRESS_RESOLUTION=1920x1080
-  - COMPRESS_CRF=35
+  - COMPRESS_CRF=32        # 28(高质量) / 32(平衡) / 35(高压缩)
   - COMPRESS_THREADS=4
-  - COMPRESS_PRESET=medium
+  - COMPRESS_PRESET=fast   # faster(快) / fast(平衡) / medium(慢但省空间)
   - TZ=Asia/Shanghai      # 时区设置（重要！）
 ```
 
