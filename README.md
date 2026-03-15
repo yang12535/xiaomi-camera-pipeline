@@ -1,19 +1,19 @@
 # 小米摄像头视频流水线
 
-## 1.2.4流程已全跑通，遇到问题请先阅读文档，如果没有请issues/PR
+## v1.2.5 压缩质量优化：默认 CRF 32 平衡模式，遇到问题请先阅读文档，如果没有请issues/PR
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v1.2.4-orange.svg)](VERSION)
+[![Version](https://img.shields.io/badge/Version-v1.2.5-orange.svg)](VERSION)
 
 > 自动化视频处理流水线：合并 → 压缩 → 上传
 
-✅ **v1.2.4 已解决上传限速问题** - 使用 `scripts/limit-container-bandwidth.sh` 对 OpenList 容器进行出口限速
+✅ **v1.2.5 优化压缩质量** - 默认 CRF 32 + fast 预设，减少花屏同时保持压缩率 - 使用 `scripts/limit-container-bandwidth.sh` 对 OpenList 容器进行出口限速
 
 ## 功能特性
 
 - 📹 **视频合并**：将小米摄像头按小时分割的 MP4 片段合并为完整 MOV
-- 🗜️ **智能压缩**：H.265 编码，CRF35，可配置分辨率（建议 1080P）
+- 🗜️ **智能压缩**：H.265 编码，CRF32 平衡模式，可配置分辨率（建议 1080P）
 - ☁️ **云端备份**：WebDAV 上传至百度网盘（OpenList/Alist）
 - 🔄 **断点续传**：上传中断自动恢复，无需从头开始
 - 📊 **进度监控**：实时显示上传速度、已传/剩余大小

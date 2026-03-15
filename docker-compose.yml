@@ -1,5 +1,5 @@
-# 小米摄像头视频流水线 v1.2.2
-# 断点续传 + 进度监控 + 监控场景优化
+# 小米摄像头视频流水线 v1.2.5
+# 压缩质量优化：CRF 32 平衡模式，兼顾质量与压缩率
 
 version: "3.8"
 
@@ -51,15 +51,17 @@ services:
       - COMPRESS_RESOLUTION=1920x1080
       
       # CRF: 0-51，越小质量越好
-      # 监控推荐 35-40（平衡质量和体积）
-      - COMPRESS_CRF=35
+      # 推荐值: 28(高质量) / 32(平衡) / 35(高压缩)
+      # 默认 32 平衡模式，减少花屏同时保持较好压缩率
+      - COMPRESS_CRF=32
       
       # 线程数
       - COMPRESS_THREADS=4
       
-      # 预设: ultrafast, superfast, veryfast, fast, medium, slow
-      # 监控推荐 veryfast（快速处理，多耗电少）
-      - COMPRESS_PRESET=medium
+      # 预设: ultrafast, superfast, veryfast, fast, medium, slow, slower
+      # 速度与质量权衡: faster(快) / fast(平衡) / medium(慢但省空间)
+      # 默认 fast 平衡模式，编码时间适中，质量较好
+      - COMPRESS_PRESET=fast
     
     deploy:
       resources:
