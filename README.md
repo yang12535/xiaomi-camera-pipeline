@@ -119,7 +119,7 @@ docker-compose logs -f
 | 高压缩率 | 1280x720 | 35 | medium | 存储空间有限 |
 | 极速处理 | original | 32 | faster | 快速处理大量视频 |
 
-> 💡 **监控场景 1080P 足够**，2K 太奢侈！CRF35 压缩率约 60-70%。
+> 💡 **监控场景 1080P 足够**，2K 太奢侈！默认 CRF 32 压缩率约 50-60%，详见[压缩参数调优指南](docs/compression-tuning-guide.md)。
 
 ### 环境变量覆盖
 
