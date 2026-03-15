@@ -8,7 +8,14 @@ ENV LANG=en_US.UTF-8     LC_ALL=en_US.UTF-8     PYTHONIOENCODING=utf-8
 
 WORKDIR /app
 
+# 复制主程序
 COPY pipeline.py /app/pipeline.py
+
+# 复制源代码模块
+COPY src/ /app/src/
+
+# 复制默认配置文件
+COPY config.yaml /app/config.yaml.default
 
 RUN mkdir -p /video /input /output /logs
 

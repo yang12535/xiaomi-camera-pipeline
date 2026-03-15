@@ -1,0 +1,37 @@
+# 小米摄像头视频处理流水线 - 默认配置
+# 可通过环境变量覆盖，详见 docker-compose.yml
+
+directories:
+  video_source: "/video"
+  merge_output: "/input"
+  compress_output: "/output"
+
+merge:
+  interval_minutes: 60
+  delete_source: true
+
+compress:
+  codec: "libx265"
+  resolution: "original"
+  crf: 32
+  preset: "fast"
+  threads: 4
+  audio_codec: "copy"
+  delete_source: true
+
+upload:
+  type: "webdav"
+  enabled: true
+  webdav_url: ""
+  webdav_user: ""
+  webdav_pass: ""
+  rate_limit: 0
+  verify: true
+  delete_after_upload: false
+  resume: true
+  max_retries: 3
+  retry_delay: 30
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"

@@ -36,7 +36,43 @@
 
 ## 快速开始
 
-### 1. 克隆项目
+### 方式一：使用预构建 Docker 镜像（推荐）
+
+直接从 GitHub Container Registry 拉取，无需克隆：
+
+```bash
+# 创建本地目录
+mkdir -p xiaomi-pipeline/{input,output,logs,data}
+
+# 运行容器（通过环境变量配置）
+docker run -d \
+  --name xiaomi-camera-pipeline \
+  -v $(pwd)/xiaomi-pipeline/input:/video \
+  -v $(pwd)/xiaomi-pipeline/output:/output \
+  -v $(pwd)/xiaomi-pipeline/logs:/logs \
+  -v $(pwd)/xiaomi-pipeline/data:/app/data \
+  -e COMPRESS_CRF=32 \
+  -e COMPRESS_PRESET=fast \
+  -e COMPRESS_THREADS=4 \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  ghcr.io/yang12535/xiaomi-camera-pipeline:latest
+```
+
+使用自定义配置文件：
+
+```bash
+docker run -d \
+  --name xiaomi-camera-pipeline \
+  -v $(pwd)/xiaomi-pipeline/input:/video \
+  -v $(pwd)/xiaomi-pipeline/output:/output \
+  -v $(pwd)/config.yaml:/app/config.yaml:ro \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  ghcr.io/yang12535/xiaomi-camera-pipeline:latest
+```
+
+### 方式二：克隆项目构建
 
 ```bash
 git clone https://github.com/yang12535/xiaomi-camera-pipeline.git
