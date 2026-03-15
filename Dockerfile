@@ -14,8 +14,8 @@ COPY pipeline.py /app/pipeline.py
 # 复制源代码模块
 COPY src/ /app/src/
 
-# 复制默认配置文件
-COPY config.yaml /app/config.yaml.default
+# 创建默认配置文件
+RUN echo 'directories:\n  video_source: "/video"\n  merge_output: "/input"\n  compress_output: "/output"\nmerge:\n  interval_minutes: 60\n  delete_source: true\ncompress:\n  codec: "libx265"\n  resolution: "original"\n  crf: 32\n  preset: "fast"\n  threads: 4\n  audio_codec: "copy"\n  delete_source: true\nupload:\n  type: "webdav"\n  enabled: false\n  webdav_url: ""\n  webdav_user: ""\n  webdav_pass: ""\n  rate_limit: 0\n  verify: true\n  delete_after_upload: false\n  resume: true\n  max_retries: 3\n  retry_delay: 30\nlogging:\n  level: "INFO"' > /app/config.yaml.default
 
 RUN mkdir -p /video /input /output /logs
 
