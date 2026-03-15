@@ -155,17 +155,43 @@ docker-compose logs -f
 
 > 💡 **监控场景 1080P 足够**，2K 太奢侈！默认 CRF 32 压缩率约 50-60%，详见[压缩参数调优指南](docs/compression-tuning-guide.md)。
 
-### 环境变量覆盖
+### 环境变量配置（飞牛 Docker 直接配置）
 
-环境变量优先级高于配置文件：
+所有配置都支持通过环境变量设置，**优先级高于配置文件**，适合在飞牛 Docker 界面直接配置：
+
+| 环境变量 | 默认值 | 说明 | 示例 |
+|---------|--------|------|------|
+| **压缩参数** ||||
+| `COMPRESS_CRF` | 32 | 压缩质量: 28(高)/32(平衡)/35(压缩) | `32` |
+| `COMPRESS_PRESET` | fast | 编码速度: faster/fast/medium | `fast` |
+| `COMPRESS_THREADS` | 4 | 编码线程数 | `4` |
+| `COMPRESS_RESOLUTION` | original | 分辨率: original/1920x1080/1280x720 | `original` |
+| `COMPRESS_DELETE_SOURCE` | true | 压缩后删除源 MOV | `true`/`false` |
+| **上传参数** ||||
+| `UPLOAD_ENABLED` | false | 是否启用上传 | `true`/`false` |
+| `WEBDAV_URL` | - | WebDAV 服务器地址 | `http://ip:5244/dav/baidu/视频` |
+| `WEBDAV_USER` | - | WebDAV 用户名 | `admin` |
+| `WEBDAV_PASS` | - | WebDAV 密码 | `your_password` |
+| `UPLOAD_RATE_LIMIT` | 1M | 上传限速 (0=不限速) | `1M`/`0` |
+| `UPLOAD_DELETE_AFTER` | true | 上传后删除本地文件 | `true`/`false` |
+| **合并参数** ||||
+| `MERGE_INTERVAL` | 60 | 合并间隔（分钟） | `60` |
+| `MERGE_DELETE_SOURCE` | true | 合并后删除源片段 | `true`/`false` |
+| **系统参数** ||||
+| `TZ` | Asia/Shanghai | 时区设置 | `Asia/Shanghai` |
+| `LOG_LEVEL` | INFO | 日志级别 | `INFO`/`DEBUG`/`WARNING` |
+
+**飞牛 Docker 配置示例：**
 
 ```yaml
-environment:
-  - COMPRESS_RESOLUTION=1920x1080
-  - COMPRESS_CRF=32        # 28(高质量) / 32(平衡) / 35(高压缩)
-  - COMPRESS_THREADS=4
-  - COMPRESS_PRESET=fast   # faster(快) / fast(平衡) / medium(慢但省空间)
-  - TZ=Asia/Shanghai      # 时区设置（重要！）
+COMPRESS_CRF=32
+COMPRESS_PRESET=fast
+COMPRESS_THREADS=4
+UPLOAD_ENABLED=true
+WEBDAV_URL=http://192.168.31.178:15245/dav/baidu/视频归档
+WEBDAV_USER=admin
+WEBDAV_PASS=your_password
+TZ=Asia/Shanghai
 ```
 
 ## 断点续传

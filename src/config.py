@@ -56,7 +56,7 @@ def load_config():
                 if key in user_config:
                     config[key].update(user_config[key])
     
-    # 环境变量覆盖
+    # 压缩参数 - 环境变量覆盖
     if os.getenv('COMPRESS_RESOLUTION'):
         config['compress']['resolution'] = os.getenv('COMPRESS_RESOLUTION')
     if os.getenv('COMPRESS_CRF'):
@@ -65,5 +65,31 @@ def load_config():
         config['compress']['threads'] = int(os.getenv('COMPRESS_THREADS'))
     if os.getenv('COMPRESS_PRESET'):
         config['compress']['preset'] = os.getenv('COMPRESS_PRESET')
+    if os.getenv('COMPRESS_DELETE_SOURCE'):
+        config['compress']['delete_source'] = os.getenv('COMPRESS_DELETE_SOURCE').lower() in ('true', '1', 'yes')
+    
+    # 上传参数 - 环境变量覆盖
+    if os.getenv('UPLOAD_ENABLED'):
+        config['upload']['enabled'] = os.getenv('UPLOAD_ENABLED').lower() in ('true', '1', 'yes')
+    if os.getenv('WEBDAV_URL'):
+        config['upload']['webdav_url'] = os.getenv('WEBDAV_URL')
+    if os.getenv('WEBDAV_USER'):
+        config['upload']['webdav_user'] = os.getenv('WEBDAV_USER')
+    if os.getenv('WEBDAV_PASS'):
+        config['upload']['webdav_pass'] = os.getenv('WEBDAV_PASS')
+    if os.getenv('UPLOAD_RATE_LIMIT'):
+        config['upload']['rate_limit'] = os.getenv('UPLOAD_RATE_LIMIT')
+    if os.getenv('UPLOAD_DELETE_AFTER'):
+        config['upload']['delete_after_upload'] = os.getenv('UPLOAD_DELETE_AFTER').lower() in ('true', '1', 'yes')
+    
+    # 合并参数 - 环境变量覆盖
+    if os.getenv('MERGE_INTERVAL'):
+        config['merge']['interval_minutes'] = int(os.getenv('MERGE_INTERVAL'))
+    if os.getenv('MERGE_DELETE_SOURCE'):
+        config['merge']['delete_source'] = os.getenv('MERGE_DELETE_SOURCE').lower() in ('true', '1', 'yes')
+    
+    # 日志级别
+    if os.getenv('LOG_LEVEL'):
+        config['logging']['level'] = os.getenv('LOG_LEVEL').upper()
     
     return config
