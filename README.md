@@ -44,7 +44,7 @@
 # 创建本地目录
 mkdir -p xiaomi-pipeline/{input,output,logs,data}
 
-# 运行容器（通过环境变量配置）
+# 基础运行（仅压缩，不上传）
 docker run -d \
   --name xiaomi-camera-pipeline \
   -v $(pwd)/xiaomi-pipeline/input:/video \
@@ -59,7 +59,27 @@ docker run -d \
   ghcr.io/yang12535/xiaomi-camera-pipeline:latest
 ```
 
-使用自定义配置文件：
+**完整配置（压缩+上传）：**
+
+```bash
+docker run -d \
+  --name xiaomi-camera-pipeline \
+  -v $(pwd)/xiaomi-pipeline/input:/video \
+  -v $(pwd)/xiaomi-pipeline/output:/output \
+  -v $(pwd)/xiaomi-pipeline/logs:/logs \
+  -v $(pwd)/xiaomi-pipeline/data:/app/data \
+  -e COMPRESS_CRF=32 \
+  -e COMPRESS_PRESET=fast \
+  -e UPLOAD_ENABLED=true \
+  -e WEBDAV_URL=http://your-openlist:5244/dav/baidu/视频 \
+  -e WEBDAV_USER=admin \
+  -e WEBDAV_PASS=your_password \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  ghcr.io/yang12535/xiaomi-camera-pipeline:latest
+```
+
+使用自定义配置文件（挂载 config.yaml）：
 
 ```bash
 docker run -d \
