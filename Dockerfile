@@ -1,8 +1,12 @@
 FROM jrottenberg/ffmpeg:6.1-ubuntu2204
 
-RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list &&     sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+# 安装 Python 依赖（使用官方源，GitHub Actions 在国外）
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip curl \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y     python3 python3-pip python3-yaml curl     && rm -rf /var/lib/apt/lists/*
+# 使用 pip 安装 PyYAML
+RUN pip3 install --no-cache-dir pyyaml
 
 ENV LANG=en_US.UTF-8     LC_ALL=en_US.UTF-8     PYTHONIOENCODING=utf-8
 
