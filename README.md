@@ -206,18 +206,27 @@ docker-compose logs -f
 | `TZ` | Asia/Shanghai | 时区设置 | `Asia/Shanghai` |
 | `LOG_LEVEL` | INFO | 日志级别 | `INFO`/`DEBUG`/`WARNING` |
 
-**飞牛 Docker 配置示例：**
+> ⚠️ **飞牛 WebUI 限制警告**
+> 
+> 飞牛 Docker 管理界面对环境变量数量有限制，可能无法输入过多变量（如上传相关的 4 个变量）。
+> 
+> **解决方案：**
+> 1. **精简变量**：仅保留 `COMPRESS_CRF`、`COMPRESS_PRESET`、`COMPRESS_THREADS`、`TZ` 等关键变量
+> 2. **使用配置文件**：将其他配置写入 `config.yaml` 并挂载到容器
+> 3. **命令行启动**：使用 `docker run` 或 `docker-compose` 命令行方式启动
+
+**飞牛 Docker 配置示例（精简版，仅关键变量）：**
 
 ```yaml
 COMPRESS_CRF=32
 COMPRESS_PRESET=fast
 COMPRESS_THREADS=4
-UPLOAD_ENABLED=true
-WEBDAV_URL=http://192.168.31.178:15245/dav/baidu/视频归档
-WEBDAV_USER=admin
-WEBDAV_PASS=your_password
 TZ=Asia/Shanghai
 ```
+
+**如需上传功能，建议使用配置文件方式：**
+
+挂载 `config.yaml` 到 `/app/config.yaml:ro`，并在其中配置上传参数。
 
 ## 断点续传
 
