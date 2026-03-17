@@ -41,7 +41,7 @@
 直接从 GitHub Container Registry 拉取，无需克隆：
 
 ```bash
-# 拉取最新镜像（约 320MB，精简版）
+# 拉取最新镜像
 docker pull ghcr.io/yang12535/xiaomi-camera-pipeline:latest
 ```
 
