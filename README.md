@@ -10,6 +10,8 @@
 
 ✅ **v1.2.5 优化压缩质量** - 默认 CRF 32 + fast 预设，减少花屏同时保持压缩率 - 使用 `scripts/limit-container-bandwidth.sh` 对 OpenList 容器进行出口限速
 
+> 💡 **最新改进（主线未发版）**：WebDAV 凭据安全隔离（netrc）、日志轮转（RotatingFileHandler）、SQLite WAL 模式、processed 复合主键修复。详见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 功能特性
 
 - 📹 **视频合并**：将小米摄像头按小时分割的 MP4 片段合并为完整 MOV
@@ -18,7 +20,8 @@
 - 🔄 **断点续传**：上传中断自动恢复，无需从头开始
 - 📊 **进度监控**：实时显示上传速度、已传/剩余大小
 - ⏰ **定时轮询**：每小时自动检查新视频
-- 🗄️ **状态持久化**：SQLite 数据库记录处理状态
+- 🗄️ **状态持久化**：SQLite 数据库记录处理状态，启用 WAL 模式提升并发与恢复可靠性
+- 📝 **日志轮转**：`pipeline.log` 单文件达 10MB 自动轮转，保留 5 个备份，避免日志无限增长
 
 ## 系统架构
 
@@ -205,6 +208,7 @@ docker-compose logs -f
 | **系统参数** ||||
 | `TZ` | Asia/Shanghai | 时区设置 | `Asia/Shanghai` |
 | `LOG_LEVEL` | INFO | 日志级别 | `INFO`/`DEBUG`/`WARNING` |
+| `STATE_DB` | /app/data/pipeline.db | SQLite 数据库路径 | `/app/data/pipeline.db` |
 
 > ⚠️ **飞牛 WebUI 限制警告**
 > 

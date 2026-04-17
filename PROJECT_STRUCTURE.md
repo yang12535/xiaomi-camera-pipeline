@@ -3,7 +3,6 @@
 ```
 xiaomi-camera-pipeline/
 ├── .dockerignore          # Docker 构建忽略文件
-├── .gitattributes         # Git 属性配置（编码、换行符）
 ├── .gitignore             # Git 忽略文件
 ├── CHANGELOG.md           # 版本变更日志
 ├── CONTRIBUTING.md        # 贡献指南
@@ -15,19 +14,32 @@ xiaomi-camera-pipeline/
 ├── PROJECT_STRUCTURE.md   # 本文件
 ├── README.md              # 项目说明
 ├── VERSION                # 版本号文件
-├── config.yaml            # 主配置文件（需手动创建）
-├── config.yaml.example    # 配置模板
+├── config.yaml            # 主配置文件（根目录默认配置）
 ├── docker-compose.yml     # Docker Compose 配置
-├── pipeline.py            # 主程序
+├── pipeline.py            # 主程序入口
 ├── requirements.txt       # Python 依赖
-└── deploy.sh              # 部署脚本
+├── deploy.sh              # 部署脚本
+├── config/                # 配置模板目录
+│   └── config.yaml.example # 配置模板（建议复制到根目录使用）
+├── src/                   # 源代码模块
+│   ├── __init__.py
+│   ├── compressor.py      # 视频压缩
+│   ├── database.py        # SQLite 数据库操作
+│   ├── merger.py          # 视频合并
+│   ├── uploader.py        # WebDAV 上传
+│   ├── utils.py           # 工具函数
+│   └── config.py          # 配置加载
+└── docs/                  # 文档目录
+    ├── bandwidth-limit-guide.md
+    ├── compression-tuning-guide.md
+    ├── project-standard.md
+    └── webdav-setup-guide.md
 
 # 运行时生成的目录
-├── data/                  # SQLite 数据库（需创建）
+├── data/                  # SQLite 数据库与状态持久化（需创建或挂载）
 │   └── pipeline.db
-└── docs/                  # 文档目录
-    ├── webdav-setup-guide.md
-    └── project-standard.md
+└── logs/                  # 日志目录（需创建或挂载）
+    └── pipeline.log
 ```
 
 ## 核心文件说明
@@ -57,9 +69,10 @@ xiaomi-camera-pipeline/
 **processed** - 处理记录
 ```sql
 CREATE TABLE processed (
-    path TEXT PRIMARY KEY,      -- 文件路径
+    path TEXT,                   -- 文件路径
     stage TEXT,                  -- 阶段：merge/compress/upload
-    timestamp TEXT               -- 处理时间 ISO8601
+    timestamp TEXT,              -- 处理时间 ISO8601
+    PRIMARY KEY (path, stage)    -- 复合主键，确保同一路径在不同阶段独立记录
 );
 ```
 
