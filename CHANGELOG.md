@@ -7,10 +7,7 @@
 
 ## [Unreleased]
 
-### 文档
-- 同步更新 README、CHANGELOG、PROJECT_STRUCTURE，反映 PR #1 的安全修复与性能改进
-
-## [1.2.5] - 2026-03-15
+## [1.2.6] - 2026-04-17
 
 ### 安全
 - **WebDAV 凭据不再暴露在进程参数列表**：`uploader.py` 改用临时 netrc 文件（权限 `0o600`）传递凭据，避免 `ps aux` 读取到明文密码
@@ -19,7 +16,7 @@
 ### 修复
 - **processed 表主键定义错误**：改为复合主键 `PRIMARY KEY (path, stage)`，避免同一路径在不同 stage 被标记时旧记录被静默删除
 - **HTTP 状态码解析脆弱**：`if 'HTTP' in line` 改为 `line.startswith('HTTP')`，精准匹配 curl `-w` 输出
-- **版本号不一致**：根目录 `pipeline.py` 启动日志更新为 `v1.2.5`
+- **版本号不一致**：根目录 `pipeline.py` 启动日志更新为 `v1.2.6`
 - **Dockerfile STATE_DB 路径不一致**：默认值改为 `/app/data/pipeline.db`，与 docker-compose.yml 挂载保持一致
 
 ### 改进
@@ -28,6 +25,9 @@
 
 ### CI/CD
 - **Docker 构建触发条件**：GitHub Actions 工作流改为仅在新 tag（`v*`）推送时触发构建，移除 `push: branches: [main]` 和 `pull_request` 触发器
+
+### 文档
+- 同步更新 README、CHANGELOG、PROJECT_STRUCTURE，反映安全修复与性能改进
 
 ## [1.2.5] - 2026-03-15
 
