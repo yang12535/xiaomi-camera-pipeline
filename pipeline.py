@@ -6,7 +6,7 @@
 模块化的视频处理流水线：
 合并 → 压缩 → 上传
 
-v1.2.5 - 压缩质量优化：默认 CRF 32 平衡模式
+v1.2.6 - 安全修复与性能改进：WebDAV 凭据隔离、日志轮转、SQLite WAL 模式
 """
 
 import os
@@ -50,7 +50,7 @@ def main():
     log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
-    logging.info("小米摄像头视频流水线 v1.2.5")
+    logging.info("小米摄像头视频流水线 v1.2.6")
     logging.info("="*50)
     
     init_db()

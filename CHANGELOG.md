@@ -7,6 +7,28 @@
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-04-17
+
+### 安全
+- **WebDAV 凭据不再暴露在进程参数列表**：`uploader.py` 改用临时 netrc 文件（权限 `0o600`）传递凭据，避免 `ps aux` 读取到明文密码
+- **历史文件上传目录修正**：从文件实际路径推断日期，避免积压视频被上传到"今天"的目录
+
+### 修复
+- **processed 表主键定义错误**：改为复合主键 `PRIMARY KEY (path, stage)`，避免同一路径在不同 stage 被标记时旧记录被静默删除
+- **HTTP 状态码解析脆弱**：`if 'HTTP' in line` 改为 `line.startswith('HTTP')`，精准匹配 curl `-w` 输出
+- **版本号不一致**：根目录 `pipeline.py` 启动日志更新为 `v1.2.6`
+- **Dockerfile STATE_DB 路径不一致**：默认值改为 `/app/data/pipeline.db`，与 docker-compose.yml 挂载保持一致
+
+### 改进
+- **日志轮转**：`FileHandler` 替换为 `RotatingFileHandler`（单文件 10MB，保留 5 个备份），避免 `pipeline.log` 无限增长
+- **SQLite WAL 模式**：`init_db()` 初始化时启用 `PRAGMA journal_mode=WAL`，提升容器重启恢复可靠性与多进程并发性能
+
+### CI/CD
+- **Docker 构建触发条件**：GitHub Actions 工作流改为仅在新 tag（`v*`）推送时触发构建，移除 `push: branches: [main]` 和 `pull_request` 触发器
+
+### 文档
+- 同步更新 README、CHANGELOG、PROJECT_STRUCTURE，反映安全修复与性能改进
+
 ## [1.2.5] - 2026-03-15
 
 ### 优化
