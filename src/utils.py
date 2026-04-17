@@ -5,6 +5,7 @@
 import os
 import subprocess
 import logging
+import logging.handlers
 
 
 def format_size(size_bytes):
