@@ -50,7 +50,7 @@ def main():
     log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
-    logging.info("小米摄像头视频流水线 v1.2.2")
+    logging.info("小米摄像头视频流水线 v1.2.5")
     logging.info("="*50)
     
     init_db()

@@ -17,7 +17,8 @@ def init_db():
     
     # 处理记录
     c.execute('''CREATE TABLE IF NOT EXISTS processed
-                 (path TEXT PRIMARY KEY, stage TEXT, timestamp TEXT)''')
+                 (path TEXT, stage TEXT, timestamp TEXT,
+                  PRIMARY KEY (path, stage))''')
     
     # 上传进度（断点续传）
     c.execute('''CREATE TABLE IF NOT EXISTS upload_progress
