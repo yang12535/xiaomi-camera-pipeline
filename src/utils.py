@@ -89,7 +89,9 @@ def setup_logging(config=None):
         format=fmt,
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.handlers.RotatingFileHandler(
+                log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'
+            ),
             logging.StreamHandler(sys.stdout)
         ]
     )
