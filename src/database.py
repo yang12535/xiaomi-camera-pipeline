@@ -14,16 +14,20 @@ def init_db():
     os.makedirs(os.path.dirname(STATE_DB), exist_ok=True)
     conn = sqlite3.connect(STATE_DB)
     c = conn.cursor()
-    
+
+    # 启用 WAL 模式以提升多进程并发性能
+    c.execute('PRAGMA journal_mode=WAL')
+
     # 处理记录
     c.execute('''CREATE TABLE IF NOT EXISTS processed
-                 (path TEXT PRIMARY KEY, stage TEXT, timestamp TEXT)''')
-    
+                 (path TEXT, stage TEXT, timestamp TEXT,
+                  PRIMARY KEY (path, stage))''')
+
     # 上传进度（断点续传）
     c.execute('''CREATE TABLE IF NOT EXISTS upload_progress
-                 (file_path TEXT PRIMARY KEY, remote_url TEXT, uploaded_size INTEGER, 
+                 (file_path TEXT PRIMARY KEY, remote_url TEXT, uploaded_size INTEGER,
                   total_size INTEGER, last_try TEXT, retry_count INTEGER DEFAULT 0)''')
-    
+
     conn.commit()
     conn.close()
 
