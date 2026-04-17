@@ -19,13 +19,14 @@ from .utils import format_size, format_speed
 
 def _write_netrc(webdav_url, user, password):
     """将 WebDAV 凭据写入临时 netrc 文件，避免凭据出现在进程参数列表中"""
-    hostname = urlparse(webdav_url).hostname or urlparse(webdav_url).netloc
+    parsed = urlparse(webdav_url)
+    hostname = parsed.hostname or parsed.netloc
     netrc_fd, netrc_path = tempfile.mkstemp(prefix='pipeline_netrc_')
     try:
         with os.fdopen(netrc_fd, 'w') as f:
             f.write(f"machine {hostname}\nlogin {user}\npassword {password}\n")
         os.chmod(netrc_path, 0o600)
-    except Exception:
+    except OSError:
         try:
             os.unlink(netrc_path)
         except OSError:
@@ -139,7 +140,7 @@ def upload_videos(config):
                     for line in output.split('\n'):
                         if line.startswith('HTTP'):
                             try:
-                                http_code = int(line[4:].strip())
+                                http_code = int(line.replace('HTTP', '', 1).strip())
                             except ValueError:
                                 pass
                         if line.startswith('Speed:'):
