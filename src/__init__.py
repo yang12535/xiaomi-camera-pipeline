@@ -10,6 +10,8 @@
 - compressor: 视频压缩
 - uploader: WebDAV 上传
 - utils: 工具函数
+- affinity: CPU 核心分配
+- webui: Web 管理界面
 """
 
 __version__ = "1.2.2"

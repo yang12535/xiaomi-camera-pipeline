@@ -1,14 +1,14 @@
 # 小米摄像头视频流水线
 
-## v1.2.6 安全修复与性能改进：WebDAV 凭据隔离、日志轮转、SQLite WAL 模式，遇到问题请先阅读文档，如果没有请issues/PR
+## v1.3.0 新功能：并行压缩、CPU 核心绑定、WebUI 管理界面，遇到问题请先阅读文档，如果没有请issues/PR
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v1.2.6-orange.svg)](VERSION)
+[![Version](https://img.shields.io/badge/Version-v1.3.0-orange.svg)](VERSION)
 
 > 自动化视频处理流水线：合并 → 压缩 → 上传
 
-✅ **v1.2.6 安全修复与性能改进** - WebDAV 凭据安全隔离（netrc）、日志轮转（RotatingFileHandler）、SQLite WAL 模式、processed 复合主键修复
+✅ **v1.3.0 并行压缩与 WebUI 管理** - 并行压缩（performance.parallel）、CPU 核心数限制与绑定（sched_setaffinity，容器 cpuset 感知）、WebUI 仪表盘（手动触发与运行时调参）
 
 ## 功能特性
 
@@ -20,6 +20,9 @@
 - ⏰ **定时轮询**：每小时自动检查新视频
 - 🗄️ **状态持久化**：SQLite 数据库记录处理状态，启用 WAL 模式提升并发与恢复可靠性
 - 📝 **日志轮转**：`pipeline.log` 单文件达 10MB 自动轮转，保留 5 个备份，避免日志无限增长
+- 🧵 **并行压缩**：`performance.parallel` 控制并行压缩任务数，多路 ffmpeg 同时处理
+- 📌 **核心绑定**：`performance.cores`/`core_list`/`bind` 限制并将 ffmpeg 绑定到分配的 CPU 核心片，防止线程乱跑
+- 🖥️ **WebUI 管理**：内置仪表盘，支持"立即运行"手动触发与运行时调整性能参数（`webui` 段配置）
 
 ## 系统架构
 
@@ -180,6 +183,33 @@ docker-compose logs -f
 | 极速处理 | original | 32 | faster | 快速处理大量视频 |
 
 > 💡 **监控场景 1080P 足够**，2K 太奢侈！默认 CRF 32 压缩率约 50-60%，详见[压缩参数调优指南](docs/compression-tuning-guide.md)。
+
+### 性能与 WebUI 配置（v1.3.0+）
+
+```yaml
+performance:
+  parallel: 1        # 并行压缩任务数，1=串行（旧行为）
+  cores: 0           # 允许使用的 CPU 核心数，0=不限制
+  core_list: ""      # 显式核心列表如 "0-3,6"，非空时优先于 cores
+  bind: false        # 是否将每个 ffmpeg 进程绑定到分配的核心片上（防止线程乱跑）
+
+webui:
+  enabled: false
+  host: "0.0.0.0"
+  port: 8080
+```
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `PERF_PARALLEL` | 1 | 并行压缩任务数，>1 时同时运行多个 ffmpeg |
+| `PERF_CORES` | 0 | 允许使用的 CPU 核心数，0=不限制 |
+| `PERF_CORE_LIST` | - | 显式核心列表（如 `0-3,6`），优先于 `PERF_CORES` |
+| `PERF_BIND` | false | 是否将 ffmpeg 绑定到分配的核心片 |
+| `WEBUI_ENABLED` | false | 是否启用 WebUI 管理界面 |
+| `WEBUI_HOST` | 0.0.0.0 | WebUI 监听地址 |
+| `WEBUI_PORT` | 8080 | WebUI 监听端口 |
+
+启用 WebUI 后访问 `http://主机IP:8080` 打开仪表盘，可查看各阶段处理数、最近记录与日志尾部，支持"立即运行"和运行时调整 performance 参数（就地生效，不落盘）。
 
 ### 环境变量配置（飞牛 Docker 直接配置）
 

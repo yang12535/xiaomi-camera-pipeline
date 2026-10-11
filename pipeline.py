@@ -6,7 +6,7 @@
 模块化的视频处理流水线：
 合并 → 压缩 → 上传
 
-v1.2.6 - 安全修复与性能改进：WebDAV 凭据隔离、日志轮转、SQLite WAL 模式
+v1.3.0 - 并行压缩与 CPU 绑核、WebUI 与立即运行触发
 """
 
 import os
@@ -30,7 +30,7 @@ else:
     os.environ.setdefault('LANG', 'C.UTF-8')
 # ===================================================
 
-import time
+import threading
 import logging
 
 # 确保 src 目录在路径中
@@ -50,10 +50,20 @@ def main():
     log_file = setup_logging(config.get('logging'))
     
     logging.info("="*50)
-    logging.info("小米摄像头视频流水线 v1.2.6")
+    logging.info("小米摄像头视频流水线 v1.3.0")
     logging.info("="*50)
     
     init_db()
+    
+    trigger_event = threading.Event()
+    
+    if config.get('webui', {}).get('enabled'):
+        try:
+            from src.webui import start_webui
+            start_webui(config, trigger_event)
+            logging.info(f"[WebUI] 已启动: http://{config['webui']['host']}:{config['webui']['port']}")
+        except Exception as e:
+            logging.warning(f"[WebUI] 启动失败: {e}")
     
     logging.info(f"配置: {os.getenv('CONFIG_FILE', '/app/config.yaml')}")
     logging.info(f"数据: {os.getenv('STATE_DB', '/app/data/pipeline.db')}")
@@ -62,6 +72,10 @@ def main():
     logging.info("-"*50)
     
     while True:
+        perf_cfg = config.get('performance', {})
+        logging.info(f"性能配置: 并行={perf_cfg.get('parallel', 1)} "
+                     f"核心={perf_cfg.get('core_list') or perf_cfg.get('cores', 0) or '不限'} "
+                     f"绑核={'开' if perf_cfg.get('bind') else '关'}")
         logging.info("开始处理..")
         
         merged = merge_videos(config)
@@ -75,7 +89,8 @@ def main():
             break
         
         logging.info(f"等待 {config['schedule']['interval']}秒 ..")
-        time.sleep(config['schedule']['interval'])
+        trigger_event.wait(timeout=config['schedule']['interval'])
+        trigger_event.clear()
 
 
 if __name__ == '__main__':

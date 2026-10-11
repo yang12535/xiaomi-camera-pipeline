@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-29
+
+### 新增
+- **并行压缩**（`performance.parallel`）：并行压缩任务数，1=串行（旧行为）；大于 1 时使用线程池同时运行多个 ffmpeg 子进程
+- **CPU 核心数限制与绑定**（`performance.cores`/`core_list`/`bind`）：`cores` 限制允许使用的核心数（0=不限制），`core_list` 显式指定核心列表（如 "0-3,6"，非空时优先于 cores）；`bind: true` 时通过 `sched_setaffinity` 将每个 ffmpeg 进程绑定到分配的核心片上（防止线程乱跑），感知容器 cpuset；绑核生效时每个 ffmpeg 的 `-threads` 自动等于分到的核心数
+- **WebUI 管理界面**（`webui` 段）：内置仪表盘展示各阶段处理数、最近记录与日志尾部，支持"立即运行"手动触发和运行时调整 performance 参数（就地生效，不落盘）
+- **环境变量覆盖**：新增 `PERF_PARALLEL`、`PERF_CORES`、`PERF_CORE_LIST`、`PERF_BIND`、`WEBUI_ENABLED`、`WEBUI_HOST`、`WEBUI_PORT`
+
 ## [1.2.6] - 2026-04-17
 
 ### 安全

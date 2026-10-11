@@ -1,5 +1,5 @@
-# 小米摄像头视频流水线 v1.2.5
-# 压缩质量优化：CRF 32 平衡模式，兼顾质量与压缩率
+# 小米摄像头视频流水线 v1.3.0
+# 新增：并行压缩、CPU 核心绑定、WebUI 管理界面
 
 version: "3.8"
 
@@ -32,6 +32,10 @@ services:
       # 使用目录挂载避免权限问题
       - ./data:/app/data
     
+    ports:
+      # WebUI 管理界面端口（WEBUI_ENABLED=true 时生效）
+      - "8080:8080"
+    
     environment:
       - CONFIG_FILE=/app/config.yaml
       - STATE_DB=/app/data/pipeline.db
@@ -62,6 +66,24 @@ services:
       # 速度与质量权衡: faster(快) / fast(平衡) / medium(慢但省空间)
       # 默认 fast 平衡模式，编码时间适中，质量较好
       - COMPRESS_PRESET=fast
+      
+      # ========== 性能参数（v1.3.0+）==========
+      # 并行压缩任务数: 1=串行（旧行为），>1 时同时运行多个 ffmpeg
+      - PERF_PARALLEL=2
+      
+      # 允许使用的 CPU 核心数: 0=不限制
+      # 建议与下方 deploy.resources.limits.cpus 保持一致（容器限 8 核这里就设 8）
+      - PERF_CORES=8
+      
+      # 是否将每个 ffmpeg 进程绑定到分配的核心片上（防止线程乱跑）
+      - PERF_BIND=true
+      
+      # ========== WebUI 管理界面（v1.3.0+）==========
+      # 是否启用 WebUI（仪表盘/立即运行/运行时调参）
+      - WEBUI_ENABLED=true
+      
+      # WebUI 监听端口，访问 http://主机IP:8080
+      - WEBUI_PORT=8080
     
     deploy:
       resources:
@@ -69,6 +91,7 @@ services:
           # CPU 限制
           # 根据宿主机配置调整
           # 4核=压缩慢但省电, 8核=压缩快但耗电
+          # 与 PERF_CORES 对应：这里限制几核，PERF_CORES 就设为几
           cpus: "8"
           memory: 2G
     

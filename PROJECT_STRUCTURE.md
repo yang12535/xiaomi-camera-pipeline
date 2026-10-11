@@ -23,11 +23,13 @@ xiaomi-camera-pipeline/
 │   └── config.yaml.example # 配置模板（建议复制到根目录使用）
 ├── src/                   # 源代码模块
 │   ├── __init__.py
+│   ├── affinity.py        # CPU 核心分配（v1.3.0+）
 │   ├── compressor.py      # 视频压缩
 │   ├── database.py        # SQLite 数据库操作
 │   ├── merger.py          # 视频合并
 │   ├── uploader.py        # WebDAV 上传
 │   ├── utils.py           # 工具函数
+│   ├── webui.py           # WebUI 管理界面（v1.3.0+）
 │   └── config.py          # 配置加载
 └── docs/                  # 文档目录
     ├── bandwidth-limit-guide.md
