@@ -26,6 +26,7 @@
     pinned: [],
     pinnedSet: new Set(),
     overridesFile: null,
+    configChanged: false,
     coreListPinned: false,
     selectedCores: new Set(),
     coreTouched: false,
@@ -145,38 +146,45 @@
   async function requestJSON(url, options) {
     var opts = options || {};
     var controller = new AbortController();
-    var timeout = setTimeout(function () { controller.abort(); }, opts.timeout || 10000);
-    var response;
+    var timedOut = false;
+    var timeout = setTimeout(function () {
+      timedOut = true;
+      controller.abort();
+    }, opts.timeout || 10000);
     try {
-      response = await fetch(url, {
-        method: opts.method || 'GET',
-        headers: opts.body
-          ? { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-          : { 'Accept': 'application/json' },
-        body: opts.body ? JSON.stringify(opts.body) : undefined,
-        cache: 'no-store',
-        credentials: 'same-origin',
-        signal: controller.signal
-      });
-    } catch (e) {
+      var response;
+      try {
+        response = await fetch(url, {
+          method: opts.method || 'GET',
+          headers: opts.body
+            ? { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+            : { 'Accept': 'application/json' },
+          body: opts.body ? JSON.stringify(opts.body) : undefined,
+          cache: 'no-store',
+          credentials: 'same-origin',
+          signal: controller.signal
+        });
+      } catch (e) {
+        throw new Error((timedOut || (e && e.name === 'AbortError')) ? '请求超时' : '网络错误');
+      }
+      var data = null;
+      try {
+        data = await response.json();
+      } catch (e) {
+        if (timedOut || (e && e.name === 'AbortError')) throw new Error('请求超时');
+        data = null;
+      }
+      if (!response.ok) {
+        var err = new Error(data && data.error ? data.error : ('HTTP ' + response.status));
+        err.status = response.status;
+        err.data = data;
+        throw err;
+      }
+      if (!data) throw new Error('响应不是合法 JSON');
+      return data;
+    } finally {
       clearTimeout(timeout);
-      throw new Error(e && e.name === 'AbortError' ? '请求超时' : '网络错误');
     }
-    clearTimeout(timeout);
-    var data = null;
-    try {
-      data = await response.json();
-    } catch (e) {
-      data = null;
-    }
-    if (!response.ok) {
-      var err = new Error(data && data.error ? data.error : ('HTTP ' + response.status));
-      err.status = response.status;
-      err.data = data;
-      throw err;
-    }
-    if (!data) throw new Error('响应不是合法 JSON');
-    return data;
   }
 
   /* ---------- 字段注册表 ---------- */
@@ -540,7 +548,9 @@
 
     $('#perf-save').disabled = !state.configReady || state.saving.performance;
     $('#pipe-save').disabled = !state.configReady || state.saving.pipeline;
-    $('#reset-btn').disabled = !state.configReady || !state.overridesFile || state.saving.performance;
+    $('#reset-btn').disabled = !state.configReady
+      || (!state.overridesFile && !state.configChanged)
+      || state.saving.performance;
   }
 
   function updateConfigMeta() {
@@ -548,11 +558,17 @@
       setText('#config-source', '配置加载失败，表单暂不可编辑');
       return;
     }
-    setText('#config-source', state.overridesFile
-      ? '当前配置来源：runtime_overrides.yaml（覆盖 config.yaml；环境变量优先级最高）'
-      : '当前配置来源：config.yaml / 环境变量（没有 WebUI 覆盖文件）');
+    if (state.overridesFile) {
+      setText('#config-source', '当前配置来源：runtime_overrides.yaml（覆盖 config.yaml；环境变量优先级最高）');
+    } else if (state.configChanged) {
+      setText('#config-source', '当前配置来源：运行时内存配置（已生效但未写入覆盖文件，重启容器后会丢失）');
+    } else {
+      setText('#config-source', '当前配置来源：config.yaml / 环境变量（没有 WebUI 覆盖文件）');
+    }
     var reset = $('#reset-btn');
-    reset.title = state.overridesFile ? '' : '当前没有 WebUI 覆盖配置，无需恢复';
+    reset.title = (state.overridesFile || state.configChanged)
+      ? ''
+      : '当前没有 WebUI 覆盖配置，无需恢复';
   }
 
   /* ---------- 脏状态 ---------- */
@@ -599,6 +615,7 @@
       state.machine = normalizeMachine(data.machine);
       state.pinned = Array.isArray(data.pinned) ? data.pinned.slice() : [];
       state.overridesFile = data.overrides_file || null;
+      state.configChanged = false;
       applyPinned();
       applySections(data.sections || {});
       state.configReady = true;
@@ -961,14 +978,15 @@
       if (group === 'performance') state.coreTouched = false;
       succeeded = true;
 
+      state.configChanged = true;
       if (data.persisted === false) {
         flash(msg, '已生效，但写入覆盖文件失败：' + (data.persist_error || '未知原因') +
           '（重启容器后会丢失）', 'err', 0);
       } else {
         state.overridesFile = state.overridesFile || 'runtime_overrides.yaml';
-        updateConfigMeta();
         flash(msg, '已保存并生效', 'ok', 6000);
       }
+      updateConfigMeta();
     } catch (e) {
       var extra = e.status === 409
         ? '（由环境变量固定的键已禁用且不会提交；请移除对应环境变量后重试）'
@@ -988,14 +1006,16 @@
 
   async function resetConfig() {
     if (!state.configReady || state.saving.performance) return;
-    if (!state.overridesFile) {
+    if (!state.overridesFile && !state.configChanged) {
       flash('#perf-msg', '当前没有 WebUI 覆盖配置，无需恢复。', 'ok', 5000);
       return;
     }
     var dirty = anyDirty();
     var ok = await confirmDialog({
       title: '恢复文件配置',
-      body: '将删除 runtime_overrides.yaml，并重新加载 config.yaml 与环境变量中的设置。' +
+      body: (state.overridesFile
+        ? '将删除 runtime_overrides.yaml，并重新加载 config.yaml 与环境变量中的设置。'
+        : '将丢弃尚未写入覆盖文件的运行时修改，并重新加载 config.yaml 与环境变量中的设置。') +
         (dirty ? ' 当前未保存的修改会丢失。' : ''),
       confirmLabel: '恢复',
       danger: true
@@ -1008,6 +1028,7 @@
     btn.disabled = true;
     try {
       await requestJSON('/api/config/reset', { method: 'POST', timeout: 15000 });
+      state.configChanged = false;
       await loadConfig();
       if (state.configReady) {
         flash('#perf-msg', '已恢复文件配置', 'ok', 6000);

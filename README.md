@@ -125,7 +125,7 @@ merge:
   output_dir: /path/to/your/video/temp
   delete_source: true
   settle_minutes: 15    # 仅处理已结束且目录修改已静默 15 分钟的小时目录
-  max_dirs_per_run: 2   # 每轮最多合并 2 个小时目录，限制中间文件占用
+  max_dirs_per_run: 2   # 每轮最多成功合并 2 个小时目录，失败不阻塞后续目录
 
 # 压缩配置
 compress:
@@ -213,7 +213,7 @@ webui:
 
 启用 WebUI 后访问 `http://主机IP:8080` 打开仪表盘，可查看当前运行阶段、各阶段处理数、最近成果、记录与日志尾部，支持"立即运行"和运行时调参。配置保存后立即生效并写入 `runtime_overrides.yaml`，容器重启后仍会恢复；环境变量固定的配置项不能在页面中修改。
 
-WebUI 会校验写请求的同源信息和 JSON Content-Type，但本身不提供登录认证。需要跨设备访问时，请仅监听可信内网，或置于带 Basic Auth 等认证机制的反向代理之后，不要直接暴露到公网。反向代理应设置 `proxy_set_header Host $host;`，或向上游传递对应的 `X-Forwarded-Host`。
+WebUI 会校验写请求的同源信息和 JSON Content-Type，但本身不提供登录认证。需要跨设备访问时，请仅监听可信内网，或置于带 Basic Auth 等认证机制的反向代理之后，不要直接暴露到公网。反向代理应设置 `proxy_set_header Host $http_host;` 以保留外部端口，或向上游传递对应的 `X-Forwarded-Host`。
 
 ### 环境变量配置（飞牛 Docker 直接配置）
 

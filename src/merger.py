@@ -66,8 +66,6 @@ def merge_videos(config):
             logging.info(f"[合并] 等待目录稳定: {dir_name}")
             continue
         selected_dirs.append(video_dir)
-        if len(selected_dirs) >= max_dirs:
-            break
 
     if not selected_dirs:
         logging.info("[合并] 没有已稳定的新视频需要处理")
@@ -75,6 +73,8 @@ def merge_videos(config):
 
     count = 0
     for video_dir in selected_dirs:
+        if count >= max_dirs:
+            break
         dir_name = os.path.basename(video_dir)
         logging.info(f"[合并] 处理目录: {dir_name}")
 
