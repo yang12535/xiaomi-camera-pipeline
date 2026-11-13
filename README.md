@@ -17,12 +17,12 @@
 - ☁️ **云端备份**：WebDAV 上传至百度网盘（OpenList/Alist）
 - 🔄 **断点续传**：上传中断自动恢复，无需从头开始
 - 📊 **进度监控**：实时显示上传速度、已传/剩余大小
-- ⏰ **定时轮询**：每小时自动检查新视频
+- ⏰ **空闲轮询**：最后一道启用工序有成品时立即继续消化积压，零产出或下游失败时定时检查
 - 🗄️ **状态持久化**：SQLite 数据库记录处理状态，启用 WAL 模式提升并发与恢复可靠性
 - 📝 **日志轮转**：`pipeline.log` 单文件达 10MB 自动轮转，保留 5 个备份，避免日志无限增长
 - 🧵 **并行压缩**：`performance.parallel` 控制并行压缩任务数，多路 ffmpeg 同时处理
 - 📌 **核心绑定**：`performance.cores`/`core_list`/`bind` 限制并将 ffmpeg 绑定到分配的 CPU 核心片，防止线程乱跑
-- 🖥️ **WebUI 管理**：内置仪表盘，支持"立即运行"手动触发与运行时调整性能参数（`webui` 段配置）
+- 🖥️ **WebUI 管理**：响应式仪表盘展示运行阶段和最近成果，支持手动触发与持久化运行时配置
 
 ## 系统架构
 
@@ -124,6 +124,8 @@ merge:
   source_dir: /path/to/your/video/input
   output_dir: /path/to/your/video/temp
   delete_source: true
+  settle_minutes: 15    # 仅处理已结束且目录修改已静默 15 分钟的小时目录
+  max_dirs_per_run: 2   # 每轮最多合并 2 个小时目录，限制中间文件占用
 
 # 压缩配置
 compress:
@@ -209,7 +211,9 @@ webui:
 | `WEBUI_HOST` | 0.0.0.0 | WebUI 监听地址 |
 | `WEBUI_PORT` | 8080 | WebUI 监听端口 |
 
-启用 WebUI 后访问 `http://主机IP:8080` 打开仪表盘，可查看各阶段处理数、最近记录与日志尾部，支持"立即运行"和运行时调整 performance 参数（就地生效，不落盘）。
+启用 WebUI 后访问 `http://主机IP:8080` 打开仪表盘，可查看当前运行阶段、各阶段处理数、最近成果、记录与日志尾部，支持"立即运行"和运行时调参。配置保存后立即生效并写入 `runtime_overrides.yaml`，容器重启后仍会恢复；环境变量固定的配置项不能在页面中修改。
+
+WebUI 会校验写请求的同源信息和 JSON Content-Type，但本身不提供登录认证。需要跨设备访问时，请仅监听可信内网，或置于带 Basic Auth 等认证机制的反向代理之后，不要直接暴露到公网。反向代理应设置 `proxy_set_header Host $host;`，或向上游传递对应的 `X-Forwarded-Host`。
 
 ### 环境变量配置（飞牛 Docker 直接配置）
 
@@ -231,7 +235,7 @@ webui:
 | `UPLOAD_RATE_LIMIT` | 1M | 上传限速 (0=不限速) | `1M`/`0` |
 | `UPLOAD_DELETE_AFTER` | true | 上传后删除本地文件 | `true`/`false` |
 | **合并参数** ||||
-| `MERGE_INTERVAL` | 60 | 合并间隔（分钟） | `60` |
+| `MERGE_INTERVAL` | 60 | 空闲轮询间隔（分钟，作用于 `schedule.interval`） | `60` |
 | `MERGE_DELETE_SOURCE` | true | 合并后删除源片段 | `true`/`false` |
 | **系统参数** ||||
 | `TZ` | Asia/Shanghai | 时区设置 | `Asia/Shanghai` |
@@ -295,6 +299,8 @@ v1.2.2+ 支持断点续传：
 environment:
   - TZ=Asia/Shanghai
 ```
+
+`TZ` 必须与摄像头 `YYYYMMDDHH` 小时目录使用的时区一致；镜像已包含时区数据，漏配或错配会导致最近目录被当作“未结束目录”而跳过。
 
 ### Q: 如何禁用上传？
 

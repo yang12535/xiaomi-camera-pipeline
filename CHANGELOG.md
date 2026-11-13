@@ -7,12 +7,30 @@
 
 ## [Unreleased]
 
+### 新增
+- WebUI 展示当前运行阶段、最近一轮成果与空闲轮询时间，支持响应式布局和键盘可访问的核心选择
+- 合并配置新增 `settle_minutes` 与 `max_dirs_per_run`，仅处理已结束且稳定的小时目录，并限制单轮中间文件规模
+
+### 改进
+- 最后一道启用工序有成品产出时立即继续消化积压，零产出或下游失败时按 `schedule.interval` 等待
+- WebUI 前端拆分为原生 HTML/CSS/JavaScript 静态资源，优化移动端、日志阅读、配置反馈与页面隐藏时的轮询行为
+- 容器补充时区数据，确保 `TZ` 正确影响日志与小时目录判断
+
+### 修复
+- 避免性能表单在不限核或核心数不能整除时意外改变核心限制
+- 避免保存一个配置区块时覆盖另一个区块的未保存编辑
+
+### 安全
+- WebUI 写接口增加同源校验、JSON Content-Type 要求与 1 MiB 请求体上限
+- 配置覆盖文件仅保存本次提交的白名单字段，避免复制 WebDAV 凭据或冻结未修改项
+- 重置配置时确认覆盖文件已删除，并避免主循环读到被清空的配置
+
 ## [1.3.0] - 2026-07-29
 
 ### 新增
 - **并行压缩**（`performance.parallel`）：并行压缩任务数，1=串行（旧行为）；大于 1 时使用线程池同时运行多个 ffmpeg 子进程
 - **CPU 核心数限制与绑定**（`performance.cores`/`core_list`/`bind`）：`cores` 限制允许使用的核心数（0=不限制），`core_list` 显式指定核心列表（如 "0-3,6"，非空时优先于 cores）；`bind: true` 时通过 `sched_setaffinity` 将每个 ffmpeg 进程绑定到分配的核心片上（防止线程乱跑），感知容器 cpuset；绑核生效时每个 ffmpeg 的 `-threads` 自动等于分到的核心数
-- **WebUI 管理界面**（`webui` 段）：内置仪表盘展示各阶段处理数、最近记录与日志尾部，支持"立即运行"手动触发和运行时调整 performance 参数（就地生效，不落盘）
+- **WebUI 管理界面**（`webui` 段）：内置仪表盘展示各阶段处理数、最近记录与日志尾部，支持"立即运行"手动触发和运行时调整 performance 参数（就地生效并持久化到运行时覆盖文件）
 - **环境变量覆盖**：新增 `PERF_PARALLEL`、`PERF_CORES`、`PERF_CORE_LIST`、`PERF_BIND`、`WEBUI_ENABLED`、`WEBUI_HOST`、`WEBUI_PORT`
 
 ## [1.2.6] - 2026-04-17

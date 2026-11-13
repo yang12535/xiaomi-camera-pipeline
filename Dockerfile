@@ -1,8 +1,8 @@
 FROM jrottenberg/ffmpeg:6.1-ubuntu2204
 
-# 安装 Python 依赖（使用官方源，GitHub Actions 在国外）
-RUN apt-get update && apt-get install -y \
-    python3 python3-pip curl \
+# 安装 Python、网络工具与时区数据（使用官方源，GitHub Actions 在国外）
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    python3 python3-pip curl tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # 使用 pip 安装 PyYAML

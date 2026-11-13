@@ -32,6 +32,7 @@ else:
 
 import threading
 import logging
+from datetime import datetime, timedelta
 
 # 确保 src 目录在路径中
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,6 +43,12 @@ from src.utils import setup_logging
 from src.merger import merge_videos
 from src.compressor import compress_videos
 from src.uploader import upload_videos
+from src.runtime import RuntimeState
+
+
+def _now():
+    """本地时区当前时间（ISO 8601）"""
+    return datetime.now().astimezone().isoformat()
 
 
 def main():
@@ -55,12 +62,13 @@ def main():
     
     init_db()
     
+    runtime = RuntimeState()
     trigger_event = threading.Event()
     
     if config.get('webui', {}).get('enabled'):
         try:
             from src.webui import start_webui
-            start_webui(config, trigger_event)
+            start_webui(config, trigger_event, runtime)
             logging.info(f"[WebUI] 已启动: http://{config['webui']['host']}:{config['webui']['port']}")
         except Exception as e:
             logging.warning(f"[WebUI] 启动失败: {e}")
@@ -68,7 +76,7 @@ def main():
     logging.info(f"配置: {os.getenv('CONFIG_FILE', '/app/config.yaml')}")
     logging.info(f"数据: {os.getenv('STATE_DB', '/app/data/pipeline.db')}")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"轮询间隔: {config['schedule']['interval']}秒")
+    logging.info(f"空闲轮询间隔: {config['schedule']['interval']}秒")
     logging.info("-"*50)
     
     while True:
@@ -77,19 +85,46 @@ def main():
                      f"核心={perf_cfg.get('core_list') or perf_cfg.get('cores', 0) or '不限'} "
                      f"绑核={'开' if perf_cfg.get('bind') else '关'}")
         logging.info("开始处理..")
-        
+
+        runtime.update(
+            running=True,
+            current_run_started_at=_now(),
+            phase='merging',
+            next_run_at=None,
+        )
         merged = merge_videos(config)
+
+        runtime.update(phase='compressing')
         compressed = compress_videos(config)
+
+        runtime.update(phase='uploading')
         uploaded = upload_videos(config)
-        
+
         logging.info(f"本次处理: 合并{merged} 压缩{compressed} 上传{uploaded}")
-        
+        runtime.update(last_run={
+            'merged': merged,
+            'compressed': compressed,
+            'uploaded': uploaded,
+            'finished_at': _now(),
+        })
+
         if config['schedule']['run_once']:
+            runtime.update(phase='stopped', running=False, next_run_at=None)
             logging.info("单次运行模式，退出")
             break
-        
-        logging.info(f"等待 {config['schedule']['interval']}秒 ..")
-        trigger_event.wait(timeout=config['schedule']['interval'])
+
+        upload_enabled = bool(config.get('upload', {}).get('enabled'))
+        did_work = uploaded > 0 if upload_enabled else compressed > 0
+        if did_work:
+            runtime.update(phase='backlog', running=False, next_run_at=None)
+            logging.info("本轮已产出成品，继续处理积压")
+            continue
+
+        interval = config['schedule']['interval']
+        next_run_at = (datetime.now().astimezone() + timedelta(seconds=interval)).isoformat()
+        runtime.update(phase='waiting', running=False, next_run_at=next_run_at)
+        logging.info(f"等待 {interval}秒 ..")
+        trigger_event.wait(timeout=interval)
         trigger_event.clear()
 
 
