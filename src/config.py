@@ -11,6 +11,8 @@ DEFAULT_CONFIG = {
         'source_dir': '/video',
         'output_dir': '/input',
         'delete_source': True,
+        'settle_minutes': 15,
+        'max_dirs_per_run': 2,
     },
     'compress': {
         'input_dir': '/input',
@@ -180,8 +182,8 @@ def load_config():
 def save_runtime_overrides(patch):
     """把 patch dict（如 {'performance': {...}}）原子写入 RUNTIME_OVERRIDES
 
-    与文件中已有的其他段落合并后整体写回；先写同目录临时文件再 os.replace，
-    避免写一半留下损坏文件。成功返回文件路径，失败抛异常。
+    与文件中已有的段落和同名字段合并后整体写回；先写同目录临时文件再
+    os.replace，避免写一半留下损坏文件。成功返回文件路径，失败抛异常。
     """
     dir_name = os.path.dirname(RUNTIME_OVERRIDES)
     if dir_name:
@@ -196,7 +198,12 @@ def save_runtime_overrides(patch):
                 data = existing
         except (yaml.YAMLError, OSError):
             pass  # 旧文件损坏则以 patch 为准重写
-    data.update(patch)
+    for section, values in patch.items():
+        current = data.get(section)
+        if not isinstance(current, dict):
+            current = {}
+        current.update(values)
+        data[section] = current
 
     tmp_file = RUNTIME_OVERRIDES + '.tmp'
     with open(tmp_file, 'w', encoding='utf-8') as f:

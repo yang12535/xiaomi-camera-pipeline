@@ -8,6 +8,10 @@ merge:
   output_dir: /input
   # 合并后删除源目录
   delete_source: true
+  # 仅处理已结束且目录修改已静默指定分钟数的小时目录
+  settle_minutes: 15
+  # 每轮最多成功合并的小时目录数；失败目录不会阻塞后续任务
+  max_dirs_per_run: 2
 
 # ========== 压缩配置 ==========
 compress:
@@ -69,8 +73,8 @@ webui:
 
 # ========== 上传配置 ==========
 upload:
-  # 是否启用上传
-  enabled: true
+  # 是否启用上传（默认关闭，配置 WebDAV 后再按需开启）
+  enabled: false
   
   # WebDAV 服务器地址
   # 支持 OpenList/Alist 等 WebDAV 服务
@@ -100,8 +104,8 @@ upload:
 
 # ========== 调度配置 ==========
 schedule:
-  # 轮询间隔（秒）
-  # 3600 = 1小时检查一次
+  # 空闲轮询间隔（秒）；最后一道启用工序有成品时会立即继续消化积压
+  # 3600 = 空闲时每 1 小时检查一次
   interval: 3600
   
   # 只运行一次（调试用）

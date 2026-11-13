@@ -7,8 +7,9 @@ directories:
   compress_output: "/output"
 
 merge:
-  interval_minutes: 60
   delete_source: true
+  settle_minutes: 15
+  max_dirs_per_run: 2
 
 compress:
   codec: "libx265"
@@ -21,7 +22,7 @@ compress:
 
 upload:
   type: "webdav"
-  enabled: true
+  enabled: false
   webdav_url: ""
   webdav_user: ""
   webdav_pass: ""
@@ -31,6 +32,10 @@ upload:
   resume: true
   max_retries: 3
   retry_delay: 30
+
+schedule:
+  interval: 3600
+  run_once: false
 
 logging:
   level: "INFO"

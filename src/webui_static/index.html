@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="小米摄像头视频流水线管理界面">
+<title>小米摄像头视频流水线</title>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要内容</a>
+
+<header class="appbar">
+  <div class="brand">
+    <h1>小米摄像头视频流水线</h1>
+    <span class="version">{{VERSION}}</span>
+  </div>
+  <div class="appbar-status">
+    <span class="conn" id="conn-chip" data-state="pending" role="status" aria-live="polite">正在连接…</span>
+    <span class="last-refresh">更新于 <time id="last-refresh" datetime="">--</time></span>
+    <button type="button" class="btn btn-primary" id="run-btn">立即运行</button>
+    <span class="inline-msg" id="run-msg" role="status" aria-live="polite"></span>
+  </div>
+</header>
+
+<div class="banner banner-warn" id="offline-banner" role="status" aria-live="polite" hidden>
+  <span id="offline-text">无法获取运行状态，页面数据可能已陈旧。</span>
+  <button type="button" class="btn btn-small" id="retry-btn">重试</button>
+</div>
+
+<main class="layout" id="main">
+  <div class="col-main">
+    <section class="panel" aria-labelledby="status-h">
+      <div class="panel-head">
+        <h2 id="status-h">运行状态</h2>
+        <span class="phase" id="phase-chip" data-phase="unknown" role="status" aria-live="polite">状态未知</span>
+      </div>
+      <dl class="status-grid">
+        <div><dt>当前阶段</dt><dd id="st-phase">—</dd></div>
+        <div><dt>当前轮开始</dt><dd id="st-current">—</dd></div>
+        <div><dt>最近一轮</dt><dd id="st-last">—</dd></div>
+        <div><dt>下次空闲检查</dt><dd id="st-next">—</dd></div>
+      </dl>
+      <p class="hint" id="status-foot">调度信息加载中…</p>
+    </section>
+
+    <section class="panel" aria-labelledby="kpi-h">
+      <h2 class="sr-only" id="kpi-h">累计处理统计</h2>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <span class="kpi-label">已合并</span>
+          <span class="kpi-value" id="kpi-merge">-</span>
+          <span class="kpi-sub">merge</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">已压缩</span>
+          <span class="kpi-value" id="kpi-compress">-</span>
+          <span class="kpi-sub">compress</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">已上传</span>
+          <span class="kpi-value" id="kpi-upload">-</span>
+          <span class="kpi-sub">upload</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">断点续传记录</span>
+          <span class="kpi-value" id="kpi-pending">-</span>
+          <span class="kpi-sub">pending</span>
+        </div>
+      </div>
+      <p class="hint" id="schedule-note">—</p>
+    </section>
+
+    <section class="panel" aria-labelledby="recent-h">
+      <div class="panel-head">
+        <h2 id="recent-h">最近 20 条处理记录</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">最近 20 条处理记录</caption>
+          <thead>
+            <tr><th scope="col">文件路径</th><th scope="col">阶段</th><th scope="col">时间</th></tr>
+          </thead>
+          <tbody id="recent-body">
+            <tr><td colspan="3" class="empty">正在加载…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="logs-h">
+      <div class="panel-head">
+        <h2 id="logs-h">日志</h2>
+        <span class="log-status" id="log-status" role="status" aria-live="polite"></span>
+      </div>
+      <div class="log-toolbar">
+        <label class="chk" for="log-lines">行数
+          <select id="log-lines">
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </label>
+        <label class="chk" for="log-auto"><input type="checkbox" id="log-auto" checked> 自动刷新</label>
+        <label class="chk" for="log-follow"><input type="checkbox" id="log-follow" checked> 跟随最新</label>
+        <button type="button" class="btn btn-small btn-ghost" id="log-refresh">立即刷新</button>
+        <button type="button" class="btn btn-small btn-ghost" id="log-jump" hidden>有新日志，跳到最新</button>
+      </div>
+      <pre id="log" tabindex="0" aria-label="流水线日志尾部">正在加载日志…</pre>
+    </section>
+  </div>
+
+  <aside class="col-side" aria-label="配置工作区">
+    <section class="panel" aria-labelledby="cfg-h">
+      <div class="panel-head">
+        <h2 id="cfg-h">配置</h2>
+        <button type="button" class="btn btn-small btn-ghost" id="config-retry" hidden>重新加载</button>
+      </div>
+      <p class="hint" id="config-source">正在加载配置…</p>
+      <div class="banner banner-warn" id="config-error" role="alert" aria-live="assertive" hidden>
+        <span id="config-error-text">配置加载失败</span>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="配置分区">
+        <button type="button" role="tab" id="tab-perf" aria-controls="panel-perf" aria-selected="true">性能</button>
+        <button type="button" role="tab" id="tab-pipe" aria-controls="panel-pipe" aria-selected="false" tabindex="-1">流水线</button>
+      </div>
+
+      <form class="tabpanel" id="panel-perf" role="tabpanel" aria-labelledby="tab-perf" data-group="performance">
+        <p class="hint">保存后立即生效并写入 runtime_overrides.yaml；环境变量优先级最高。</p>
+
+        <div class="field">
+          <label for="perf-parallel">并行任务数</label>
+          <input type="number" id="perf-parallel" data-key="performance.parallel" data-type="int"
+                 min="1" max="32" step="1" required inputmode="numeric">
+          <p class="hint">同时运行的压缩任务数；1 表示串行（旧行为）。</p>
+        </div>
+
+        <div class="field">
+          <label for="perf-cores">可用核心上限</label>
+          <div class="inline-controls">
+            <input type="number" id="perf-cores" data-key="performance.cores" data-type="int"
+                   min="1" max="128" step="1" required inputmode="numeric">
+            <label class="chk" for="perf-cores-unlimited"><input type="checkbox" id="perf-cores-unlimited"> 不限（0）</label>
+          </div>
+          <p class="hint">0 表示不限制。勾选“不限”保存时保持为 0，不会折算成具体核数。</p>
+          <p class="hint" id="perf-derived">—</p>
+          <p class="hint" id="perf-machine">—</p>
+        </div>
+
+        <div class="field field-check">
+          <label class="chk" for="perf-bind">
+            <input type="checkbox" id="perf-bind" data-key="performance.bind" data-type="bool">
+            启用 CPU 绑核
+          </label>
+          <p class="hint">开启后每个压缩进程绑定到所选核心；关闭时 core_list 仍会限制可用核心范围。</p>
+        </div>
+
+        <fieldset class="core-picker" id="core-picker">
+          <legend>核心选择（core_list）<span class="muted" id="core-budget"></span></legend>
+          <div class="core-toolbar">
+            <button type="button" class="btn btn-small btn-secondary" data-core-action="all">全选</button>
+            <button type="button" class="btn btn-small btn-secondary" data-core-action="none">清空</button>
+            <button type="button" class="btn btn-small btn-secondary" data-core-action="invert">反选</button>
+            <span class="core-count" id="core-count" role="status" aria-live="polite">已选 0 / 上限 0</span>
+          </div>
+          <p class="hint" id="core-note">核心信息加载中…</p>
+          <div class="core-grid" id="core-grid" role="group"
+               aria-label="可用 CPU 核心" aria-describedby="core-note core-pin-note"></div>
+          <p class="hint">表达式：<code id="core-expr">（空）</code></p>
+          <p class="form-error" id="core-error" role="alert" aria-live="assertive"></p>
+          <p class="hint pin-note" id="core-pin-note" hidden>
+            core_list 由环境变量固定，核心网格与核心上限已锁定；并行数、绑核与其他性能项仍可保存。
+          </p>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="perf-save">保存性能设置</button>
+          <button type="button" class="btn btn-secondary" id="reset-btn" disabled>恢复文件配置</button>
+          <span class="dirty" id="perf-dirty" hidden>未保存修改</span>
+        </div>
+        <p class="form-msg" id="perf-msg" role="status" aria-live="polite"></p>
+        <p class="hint">“恢复文件配置”会删除 WebUI 覆盖文件并重新加载 config.yaml / 环境变量；未保存的修改会丢失。</p>
+      </form>
+
+      <form class="tabpanel" id="panel-pipe" role="tabpanel" aria-labelledby="tab-pipe"
+            data-group="pipeline" hidden>
+        <fieldset>
+          <legend>压缩 compress</legend>
+          <div class="field">
+            <label for="c-crf">CRF（0-51，越小质量越好）</label>
+            <input type="number" id="c-crf" data-key="compress.crf" data-type="int"
+                   min="0" max="51" step="1" required inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="c-preset">编码预设</label>
+            <select id="c-preset" data-key="compress.preset" data-type="enum">
+              <option value="ultrafast">ultrafast</option>
+              <option value="superfast">superfast</option>
+              <option value="veryfast">veryfast</option>
+              <option value="faster">faster</option>
+              <option value="fast">fast</option>
+              <option value="medium">medium</option>
+              <option value="slow">slow</option>
+              <option value="slower">slower</option>
+              <option value="veryslow">veryslow</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="c-resolution">输出分辨率</label>
+            <input type="text" id="c-resolution" data-key="compress.resolution" data-type="resolution"
+                   placeholder="original 或 1920x1080" pattern="original|\d{3,4}x\d{3,4}"
+                   title="original 或 宽x高，如 1920x1080" required>
+          </div>
+          <div class="field">
+            <label for="c-threads">ffmpeg 线程数</label>
+            <input type="number" id="c-threads" data-key="compress.threads" data-type="int"
+                   min="1" max="32" step="1" required inputmode="numeric">
+            <p class="hint">cores / core_list 生效时，每任务线程数会按核心预算自动覆盖此项。</p>
+          </div>
+          <div class="field field-check">
+            <label class="chk" for="c-delete-source">
+              <input type="checkbox" id="c-delete-source" data-key="compress.delete_source" data-type="bool"
+                     data-danger-title="开启压缩后删除源文件"
+                     data-danger="开启后，每次压缩成功都会永久删除源 MOV 文件，无法恢复。确定开启？">
+              压缩成功后删除源文件
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>合并 merge</legend>
+          <div class="field">
+            <label for="m-settle">目录静默等待（分钟）</label>
+            <input type="number" id="m-settle" data-key="merge.settle_minutes" data-type="int"
+                   min="0" max="10080" step="1" required inputmode="numeric">
+            <p class="hint">只处理修改时间已静默指定分钟数的小时目录；0 表示不等待。</p>
+          </div>
+          <div class="field">
+            <label for="m-max-dirs">每轮最多成功合并目录数</label>
+            <input type="number" id="m-max-dirs" data-key="merge.max_dirs_per_run" data-type="int"
+                   min="1" max="100" step="1" required inputmode="numeric">
+            <p class="hint">限制积压时每轮产生的中间文件数量。</p>
+          </div>
+          <div class="field field-check">
+            <label class="chk" for="m-delete-source">
+              <input type="checkbox" id="m-delete-source" data-key="merge.delete_source" data-type="bool"
+                     data-danger-title="开启合并后删除源文件"
+                     data-danger="开启后，合并成功会永久删除源目录中的 MP4 片段，无法恢复。确定开启？">
+              合并成功后删除源文件
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset id="upload-fields">
+          <legend>上传 upload <span class="chip" id="upload-chip" data-state="off">已关闭</span></legend>
+          <p class="hint" id="upload-note" hidden>上传已关闭：以下设置会保留，启用后生效。</p>
+          <div class="field field-check">
+            <label class="chk" for="u-enabled">
+              <input type="checkbox" id="u-enabled" data-key="upload.enabled" data-type="bool">
+              启用上传
+            </label>
+          </div>
+          <div class="field">
+            <label for="u-rate-limit">限速</label>
+            <input type="text" id="u-rate-limit" data-key="upload.rate_limit" data-type="str"
+                   placeholder="如 1M，0 表示不限">
+          </div>
+          <div class="field field-check">
+            <label class="chk" for="u-resume">
+              <input type="checkbox" id="u-resume" data-key="upload.resume" data-type="bool">
+              断点续传
+            </label>
+          </div>
+          <div class="field">
+            <label for="u-max-retries">最大重试次数</label>
+            <input type="number" id="u-max-retries" data-key="upload.max_retries" data-type="int"
+                   min="1" max="10" step="1" required inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="u-retry-delay">重试间隔（秒）</label>
+            <input type="number" id="u-retry-delay" data-key="upload.retry_delay" data-type="int"
+                   min="5" max="600" step="1" required inputmode="numeric">
+          </div>
+          <div class="field field-check">
+            <label class="chk" for="u-delete-after-upload">
+              <input type="checkbox" id="u-delete-after-upload" data-key="upload.delete_after_upload" data-type="bool"
+                     data-danger-title="开启上传后删除本地文件"
+                     data-danger="开启后，上传成功会永久删除本地成品文件，无法恢复。确定开启？">
+              上传成功后删除本地文件
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>调度 schedule</legend>
+          <div class="field">
+            <label for="s-interval">空闲轮询间隔（秒）</label>
+            <input type="number" id="s-interval" data-key="schedule.interval" data-type="int"
+                   min="60" max="86400" step="1" required inputmode="numeric">
+            <p class="hint" id="schedule-hint">—</p>
+          </div>
+          <div class="field field-check">
+            <label class="chk" for="s-run-once">
+              <input type="checkbox" id="s-run-once" data-key="schedule.run_once" data-type="bool">
+              单次运行（完成一轮后退出）
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>日志 logging</legend>
+          <div class="field">
+            <label for="l-level">日志级别</label>
+            <select id="l-level" data-key="logging.level" data-type="enum">
+              <option value="DEBUG">DEBUG</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="pipe-save">保存配置</button>
+          <span class="dirty" id="pipe-dirty" hidden>未保存修改</span>
+        </div>
+        <p class="form-msg" id="pipe-msg" role="status" aria-live="polite"></p>
+        <p class="hint">WebDAV 凭据与目录路径不在此开放，请编辑 config.yaml。</p>
+      </form>
+    </section>
+  </aside>
+</main>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+  <form method="dialog">
+    <h2 id="confirm-title">请确认</h2>
+    <p id="confirm-body"></p>
+    <div class="dialog-actions">
+      <button type="submit" value="cancel" class="btn btn-secondary" id="confirm-cancel">取消</button>
+      <button type="submit" value="confirm" class="btn btn-danger" id="confirm-ok">确认</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

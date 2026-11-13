@@ -6,6 +6,8 @@ import os
 import subprocess
 import shutil
 import logging
+import time
+from datetime import datetime
 
 from .database import is_processed, mark_processed
 from .utils import verify_video, get_video_dirs
@@ -16,48 +18,88 @@ def merge_videos(config):
     merge_cfg = config['merge']
     source = merge_cfg['source_dir']
     output = merge_cfg['output_dir']
-    
+
     if not os.path.exists(source):
         logging.info(f"[合并] 源目录不存在: {source}")
         return 0
-    
+
     os.makedirs(output, exist_ok=True)
     dirs = get_video_dirs(source)
-    
+
     if not dirs:
         logging.info("[合并] 没有新视频需要处理")
         return 0
-    
-    count = 0
+
+    current_hour = datetime.now().strftime('%Y%m%d%H')
+    try:
+        settle_minutes = max(0, int(merge_cfg.get('settle_minutes', 15)))
+        max_dirs = max(1, int(merge_cfg.get('max_dirs_per_run', 2)))
+    except (TypeError, ValueError):
+        logging.warning("[合并] 稳定时间/每轮限量配置无效，使用默认值 15 分钟、2 个目录")
+        settle_minutes = 15
+        max_dirs = 2
+    settle_seconds = settle_minutes * 60
+    selected_dirs = []
     for video_dir in dirs:
         dir_name = os.path.basename(video_dir)
         if is_processed(video_dir, 'merge'):
             continue
-        
+        if dir_name >= current_hour:
+            logging.info(f"[合并] 跳过未结束目录: {dir_name}")
+            continue
+        try:
+            now = time.time()
+            latest_change = os.path.getmtime(video_dir)
+            mp4_files = [f for f in os.listdir(video_dir) if f.endswith('.mp4')]
+            for filename in mp4_files:
+                stat = os.stat(os.path.join(video_dir, filename))
+                latest_change = max(latest_change, stat.st_mtime, stat.st_ctime)
+            idle_seconds = now - latest_change
+        except OSError as e:
+            logging.warning(f"[合并] 无法检查源目录: {video_dir}, 错误: {e}")
+            continue
+        if not mp4_files:
+            continue
+        if idle_seconds < -3600:
+            logging.warning(f"[合并] 源目录时间戳异常，比当前时间快 {-idle_seconds / 3600:.1f} 小时: {dir_name}")
+        if idle_seconds < settle_seconds:
+            logging.info(f"[合并] 等待目录稳定: {dir_name}")
+            continue
+        selected_dirs.append(video_dir)
+
+    if not selected_dirs:
+        logging.info("[合并] 没有已稳定的新视频需要处理")
+        return 0
+
+    count = 0
+    for video_dir in selected_dirs:
+        if count >= max_dirs:
+            break
+        dir_name = os.path.basename(video_dir)
         logging.info(f"[合并] 处理目录: {dir_name}")
-        
+
         mp4_files = sorted([
             f for f in os.listdir(video_dir)
             if f.endswith('.mp4')
         ])
-        
+
         if not mp4_files:
             continue
-        
+
         concat_file = os.path.join(os.environ.get('TEMP', '/tmp'), f"concat_{dir_name}.txt")
         with open(concat_file, 'w', encoding='utf-8', newline='\n') as f:
             for mp4 in mp4_files:
                 file_path = os.path.join(video_dir, mp4).replace('\\', '/')
                 f.write(f"file '{file_path}'\n")
-        
+
         hour_str = dir_name[:10]
         year, month, day, hour = hour_str[:4], hour_str[4:6], hour_str[6:8], hour_str[8:10]
-        
+
         out_dir = os.path.join(output, year, month, day)
         os.makedirs(out_dir, exist_ok=True)
         out_file = os.path.join(out_dir, f"{hour}.mov")
         temp_file = out_file.replace('.mov', '.tmp.mov')
-        
+
         if os.path.exists(out_file):
             if verify_video(out_file):
                 logging.info(f"[合并] 跳过已存 {out_file}")
@@ -68,16 +110,16 @@ def merge_videos(config):
             else:
                 logging.warning(f"[合并] 删除无效旧文件 {out_file}")
                 os.remove(out_file)
-        
+
         cmd = [
             'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
             '-i', concat_file, '-c', 'copy', '-movflags', '+faststart',
             temp_file
         ]
-        
+
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+
             if result.returncode == 0 and os.path.exists(temp_file):
                 if os.path.getsize(temp_file) > 1048576 and verify_video(temp_file):
                     try:
@@ -86,7 +128,7 @@ def merge_videos(config):
                             logging.info(f"[合并] 成功: {out_file}")
                             mark_processed(video_dir, 'merge')
                             count += 1
-                            
+
                             if merge_cfg['delete_source']:
                                 try:
                                     shutil.rmtree(video_dir)
@@ -110,5 +152,5 @@ def merge_videos(config):
                 os.remove(concat_file)
             if os.path.exists(temp_file):
                 os.remove(temp_file)
-    
+
     return count
